@@ -1,0 +1,565 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Represents a user's profile, wallet, and ranking information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID from Firebase Auth." },
+        "id": { "type": "string", "description": "Alias for uid." },
+        "name": { "type": "string", "description": "User's public name." },
+        "handle": { "type": "string", "description": "User's unique handle (e.g., @username)." },
+        "avatar": { "type": "string", "description": "URL to the user's profile picture." },
+        "balance": { "type": "number", "description": "Current wallet balance in credits." },
+        "rank": { "type": "string", "description": "User's platform ranking." },
+        "rankColor": { "type": "string", "description": "Tailwind color class for the rank." },
+        "rankingId": { "type": "string", "description": "Unique ranking identifier for the user used for rewards." },
+        "followers": { "type": "integer", "description": "Number of followers." },
+        "following": { "type": "integer", "description": "Number of users followed." },
+        "isVerified": { "type": "boolean", "description": "Whether the user is verified." },
+        "role": { "type": "string", "enum": ["admin", "mini-admin", "user", "dealer", "premium-user"], "description": "User role." },
+        "email": { "type": "string", "format": "email", "description": "User's email address." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the account was created." },
+        "isSecurityKeyEnabled": { "type": "boolean", "description": "Whether 2FA security key is enabled." },
+        "keyExpiresAt": { "type": "string", "format": "date-time", "description": "When the security key expires." },
+        "securityKey": { "type": "string", "description": "The 2FA security key." },
+        "accountNumber": { "type": "string", "description": "Internal account number." },
+        "isAccountActive": { "type": "boolean", "description": "Whether the wallet is active." },
+        "isBoosted": { "type": "boolean", "description": "Whether the user has an active earning boost." },
+        "boostExpiry": { "type": "string", "format": "date-time", "description": "When the boost expires." },
+        "stripeAccountId": { "type": "string", "description": "Linked Stripe account ID." },
+        "isStripeConnected": { "type": "boolean", "description": "Whether Stripe is fully connected." },
+        "hasAcceptedMarketPolicy": { "type": "boolean", "description": "Whether the user has accepted the market dealer policy." },
+        "isSuspended": { "type": "boolean", "description": "Whether the user's account is suspended for policy violations." },
+        "totalEarnings": { "type": "number", "description": "Accumulated platform earnings for leaderboards and noble status." },
+        "forexWalletBalance": { "type": "number", "description": "Current balance in the GMT Forex trading account." },
+        "forexProfitBalance": { "type": "number", "description": "Accumulated live profit in GMT Forex, available for transfer to central wallet." },
+        "gender": { "type": "string", "enum": ["male", "female", "other"], "description": "User's gender for noble titles and analysis." }
+      },
+      "required": ["uid", "name", "handle", "balance", "rank"]
+    },
+    "Community": {
+      "title": "Community",
+      "description": "A group of users with shared interests.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "avatar": { "type": "string" },
+        "membersCount": { "type": "integer" },
+        "isPrivate": { "type": "boolean" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "createdBy", "createdAt"]
+    },
+    "FriendRequest": {
+      "title": "Friend Request",
+      "description": "A request to connect between two users.",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "toId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromId", "toId", "status", "createdAt"]
+    },
+    "Message": {
+      "title": "Chat Message",
+      "description": "A message sent between users.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "gif", "audio"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "senderId", "text", "timestamp"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "description": "A connection between two users.",
+      "type": "object",
+      "properties": {
+        "users": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["pending", "accepted"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["users", "status", "createdAt"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "A user following a creator.",
+      "type": "object",
+      "properties": {
+        "subscriberId": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["subscriberId", "creatorId", "createdAt"]
+    },
+    "Post": {
+      "title": "Social Post",
+      "description": "A post in the Supreme Network feed (postcard or videocard).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique post ID." },
+        "authorUid": { "type": "string", "description": "UID of the post creator." },
+        "authorName": { "type": "string", "description": "Name of the author at the time of posting." },
+        "authorHandle": { "type": "string", "description": "Handle of the author." },
+        "authorAvatar": { "type": "string", "description": "Avatar URL of the author." },
+        "authorRank": { "type": "string", "description": "Rank of the author." },
+        "authorRankColor": { "type": "string", "description": "Color of the author's rank." },
+        "content": { "type": "string", "description": "Text content of the post." },
+        "mediaUrl": { "type": "string", "description": "URL to attached image or video." },
+        "mediaType": { "type": "string", "enum": ["text", "image", "video", "gif"], "description": "Type of media attached." },
+        "likes": { "type": "integer", "description": "Number of likes." },
+        "dislikes": { "type": "integer", "description": "Number of dislikes." },
+        "comments": { "type": "integer", "description": "Number of comments." },
+        "shares": { "type": "integer", "description": "Number of shares." },
+        "category": { "type": "string", "description": "Post category (e.g., Tech, News)." },
+        "privacy": { "type": "string", "enum": ["public", "friends", "private"], "description": "Post visibility." },
+        "isPinned": { "type": "boolean", "description": "Whether the post is pinned to the top." },
+        "bgColor": { "type": "string", "description": "Background color for the post card." },
+        "transformType": { "type": "string", "description": "Visual style/transform applied to the post." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the post was created." }
+      },
+      "required": ["authorUid", "content", "mediaType", "createdAt"]
+    },
+    "GameSession": {
+      "title": "Million Deals Game Session",
+      "description": "Represents the state of a Million Deals game round.",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["waiting", "active", "paused", "ended"], "description": "Current game status." },
+        "totalPot": { "type": "number", "description": "Total amount invested in this round." },
+        "startTime": { "type": "string", "format": "date-time", "description": "When the round started." },
+        "endTime": { "type": "string", "format": "date-time", "description": "When the round will end." },
+        "multiplier": { "type": "number", "description": "Current payout multiplier (e.g., 4x)." },
+        "playersCount": { "type": "integer", "description": "Number of active players." }
+      },
+      "required": ["status", "totalPot"]
+    },
+    "Transaction": {
+      "title": "Wallet Transaction",
+      "description": "A record of a credit deposit, withdrawal, or game investment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User ID involved." },
+        "amount": { "type": "number", "description": "Amount of credits (positive for deposit, negative for withdrawal/investment)." },
+        "type": { "type": "string", "enum": ["deposit", "withdrawal", "investment", "payout"], "description": "Type of transaction." },
+        "description": { "type": "string", "description": "Details about the transaction." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the transaction occurred." }
+      },
+      "required": ["uid", "amount", "type", "timestamp"]
+    },
+    "Product": {
+      "title": "Market Product",
+      "description": "A product available for purchase in the Supreme Market.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Product name." },
+        "price": { "type": "number", "description": "Current price." },
+        "originalPrice": { "type": "number", "description": "Price before discount." },
+        "discount": { "type": "integer", "description": "Discount percentage." },
+        "rating": { "type": "number", "description": "Average user rating." },
+        "image": { "type": "string", "description": "Product image URL." },
+        "category": { "type": "string", "description": "Product category." },
+        "description": { "type": "string", "description": "Detailed description." },
+        "stockLeft": { "type": "integer", "description": "Remaining stock." },
+        "soldCount": { "type": "integer", "description": "Total units sold." },
+        "isFlashSale": { "type": "boolean", "description": "Whether it's part of a flash sale." },
+        "sellerUid": { "type": "string", "description": "UID of the dealer/seller." },
+        "status": { "type": "string", "enum": ["active", "on-hold", "suspended", "queued"], "description": "Current status of the product." },
+        "isVerified": { "type": "boolean", "description": "Whether the product has been verified by admin." },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "readyToListAt": { "type": "string", "format": "date-time", "description": "Timestamp when the 24h waiting period ends." }
+      },
+      "required": ["name", "price", "category", "sellerUid"]
+    },
+    "MarketDealerProfile": {
+      "title": "Market Dealer Profile",
+      "description": "Detailed information for users acting as market dealers.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "businessName": { "type": "string" },
+        "businessType": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" },
+        "contactPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "verificationDocuments": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "submittedAt": { "type": "string", "format": "date-time" },
+        "verifiedAt": { "type": "string", "format": "date-time" },
+        "adminNotes": { "type": "string" },
+        "sincerityScore": { "type": "integer", "description": "Score from 1-100 assigned by admin." }
+      },
+      "required": ["userId", "businessName", "status", "submittedAt"]
+    },
+    "Order": {
+      "title": "Market Order",
+      "description": "A record of a product purchase with delivery tracking.",
+      "type": "object",
+      "properties": {
+        "buyerUid": { "type": "string", "description": "UID of the purchaser." },
+        "dealerUid": { "type": "string", "description": "UID of the dealer." },
+        "productId": { "type": "string", "description": "ID of the product purchased." },
+        "productName": { "type": "string" },
+        "amount": { "type": "number", "description": "Total amount paid." },
+        "status": { "type": "string", "enum": ["pending", "shipped", "delivered", "cancelled", "disputed"], "description": "Order status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the order was placed." },
+        "deliveryDueDate": { "type": "string", "format": "date-time", "description": "Deadline for delivery agreed by dealer." },
+        "userMarkedReceived": { "type": "boolean", "description": "Whether the buyer confirmed receipt." },
+        "reminderSent": { "type": "boolean", "description": "Whether the system sent a reminder prompt." },
+        "adminAlerted": { "type": "boolean", "description": "Whether admin was notified of delivery failure." }
+      },
+      "required": ["buyerUid", "dealerUid", "productId", "amount", "status", "createdAt", "deliveryDueDate"]
+    },
+    "Ad": {
+      "title": "Advertisement",
+      "description": "An ad campaign created by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the ad owner." },
+        "type": { "type": "string", "enum": ["video", "text", "ai-generated", "image"] },
+        "level": { "type": "integer", "enum": [1, 2, 3, 4] },
+        "size": { "type": "string" },
+        "backgroundColor": { "type": "string" },
+        "content": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "backgroundType": { "type": "string", "enum": ["color", "image", "video"] },
+        "backgroundUrl": { "type": "string" },
+        "textBackgroundColor": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "activeHours": { "type": "array", "items": { "type": "integer" } },
+        "targeting": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "subscriptionId": { "type": "string" },
+        "clicks": { "type": "integer" },
+        "revenue": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "coming-soon"] }
+      },
+      "required": ["userId", "type", "level", "size", "createdAt", "expiresAt"]
+    },
+    "WeeklyEngagement": {
+      "title": "Weekly Engagement",
+      "description": "Tracks user activity metrics for a specific week.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "weekId": { "type": "string", "description": "Format: YYYY-WW" },
+        "posts": { "type": "integer" },
+        "comments": { "type": "integer" },
+        "likes": { "type": "integer" },
+        "shares": { "type": "integer" },
+        "score": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "weekId", "score"]
+    },
+    "RewardDistribution": {
+      "title": "Reward Distribution",
+      "description": "Records when weekly rewards were distributed.",
+      "type": "object",
+      "properties": {
+        "weekId": { "type": "string" },
+        "distributedAt": { "type": "string", "format": "date-time" },
+        "winners": { "type": "array", "items": { "type": "string" } },
+        "amountPerWinner": { "type": "number" }
+      },
+      "required": ["weekId", "distributedAt", "winners"]
+    },
+    "Bet": {
+      "title": "Sports Bet",
+      "description": "A parlay bet placed by a user in Bet Optimum.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user who placed the bet." },
+        "selections": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "matchId": { "type": "string" },
+              "prediction": { "type": "string", "enum": ["home", "draw", "away"] },
+              "odds": { "type": "number" },
+              "matchInfo": { "type": "string" }
+            }
+          }
+        },
+        "amount": { "type": "number", "description": "Stake amount." },
+        "potentialWin": { "type": "number", "description": "Maximum possible payout." },
+        "status": { "type": "string", "enum": ["pending", "won", "lost"] },
+        "correctCount": { "type": "integer", "description": "Number of correct predictions." },
+        "payout": { "type": "number", "description": "Actual amount paid out." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "settledAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "selections", "amount", "status", "createdAt"]
+    },
+    "RankRewardBenefit": {
+      "title": "Rank Reward Benefit",
+      "description": "A one-time mining reward reward for reaching a specific rank.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "rank": { "type": "string" },
+        "rankingId": { "type": "string" },
+        "miningKey": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "active", "completed"] },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "amountMined": { "type": "number" },
+        "durationHours": { "type": "integer" },
+        "rewardType": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "rank", "rankingId", "miningKey", "status", "createdAt"]
+    },
+    "GiftCard": {
+      "title": "Gift Card",
+      "description": "A tradeable gift card generated based on user rank.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "value": { "type": "number" },
+        "cost": { "type": "number" },
+        "rank": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "listed", "sold", "used"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["code", "value", "cost", "rank", "ownerId", "status", "createdAt"]
+    },
+    "TreasureInvestment": {
+      "title": "Treasure Investment",
+      "description": "Represents a user's investment in a Supreme Treasure Briefcase.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "briefcaseId": { "type": "string" },
+        "amount": { "type": "number" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "completed", "refunded"] },
+        "rank": { "type": "string" },
+        "initialRankCount": { "type": "integer" },
+        "earned": { "type": "number" },
+        "maturedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "briefcaseId", "amount", "startDate", "endDate", "status", "rank", "initialRankCount"]
+    },
+    "SecurityThreat": {
+      "title": "Security Threat",
+      "description": "Logs of intrusion attempts and suspicious activities.",
+      "type": "object",
+      "properties": {
+        "ip": { "type": "string" },
+        "type": { "type": "string" },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "method": { "type": "string" },
+        "path": { "type": "string" },
+        "userAgent": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "location": { "type": "object" },
+        "userId": { "type": "string" }
+      },
+      "required": ["ip", "type", "severity", "timestamp"]
+    },
+    "IPBlock": {
+      "title": "IP Block",
+      "description": "Blocked IP addresses and ranges.",
+      "type": "object",
+      "properties": {
+        "ip": { "type": "string" },
+        "reason": { "type": "string" },
+        "blockedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" },
+        "adminId": { "type": "string" }
+      },
+      "required": ["ip", "reason", "blockedAt"]
+    },
+    "ConnectivityLog": {
+      "title": "Connectivity Log",
+      "description": "Records details about a user's network and device when they connect.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "ip": { "type": "string" },
+        "country": { "type": "string" },
+        "city": { "type": "string" },
+        "networkType": { "type": "string", "description": "e.g., wifi, cellular, ethernet" },
+        "networkStrength": { "type": "string", "description": "e.g., fast-2g, 4g, etc." },
+        "browser": { "type": "string" },
+        "browserVersion": { "type": "string" },
+        "device": { "type": "string" },
+        "os": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "userAgent": { "type": "string" }
+      },
+      "required": ["userId", "ip", "timestamp"]
+    },
+    "FeatureLock": {
+      "title": "Feature Lock",
+      "description": "Locks specific features for users or globally.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Null if global lock" },
+        "featureId": { "type": "string" },
+        "isLocked": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "lockedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["featureId", "isLocked", "lockedAt"]
+    },
+    "AdminWallet": {
+      "title": "Admin Wallet",
+      "description": "Financial repository for individual admins.",
+      "type": "object",
+      "properties": {
+        "adminUid": { "type": "string" },
+        "adminName": { "type": "string" },
+        "balance": { "type": "number", "default": 0 },
+        "securityKey": { "type": "string", "description": "Hashed security key for transactions." },
+        "isKeySet": { "type": "boolean", "default": false },
+        "role": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminUid", "balance", "role"]
+    },
+    "AdminTransaction": {
+      "title": "Admin Wallet Transaction",
+      "description": "Record of admin wallet activities.",
+      "type": "object",
+      "properties": {
+        "fromUid": { "type": "string" },
+        "toUid": { "type": "string" },
+        "targetType": { "type": "string", "enum": ["admin", "user", "external"] },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["funding", "reward", "transfer", "withdrawal"] },
+        "method": { "type": "string", "enum": ["stripe", "bitcoin", "paypal", "internal"] },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "reference": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["amount", "type", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "Individual user profile documents."
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Global feed of social posts."
+    },
+    "/game_sessions/{sessionId}": {
+      "schema": "GameSession",
+      "description": "Million Deals game session states."
+    },
+    "/transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "History of wallet transactions."
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Marketplace products."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Purchase history."
+    },
+    "/ads/{adId}": {
+      "schema": "Ad",
+      "description": "Collection of advertisements."
+    },
+    "/communities/{communityId}": {
+      "schema": "Community",
+      "description": "Collection of communities."
+    },
+    "/friendships/{friendshipId}": {
+      "schema": "Friendship",
+      "description": "User connections."
+    },
+    "/subscriptions/{subId}": {
+      "schema": "Subscription",
+      "description": "User subscriptions."
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat messages."
+    },
+    "/mini_admins/{adminId}": {
+      "schema": "object",
+      "description": "Collection of mini-administrators."
+    },
+    "/settings/{settingId}": {
+      "schema": "object",
+      "description": "Platform-wide configuration settings."
+    },
+    "/weekly_engagement/{engagementId}": {
+      "schema": "WeeklyEngagement",
+      "description": "Weekly engagement metrics per user."
+    },
+    "/reward_distributions/{distId}": {
+      "schema": "RewardDistribution",
+      "description": "History of reward distributions."
+    },
+    "/bets/{betId}": {
+      "schema": "Bet",
+      "description": "User sports bets."
+    },
+    "/rank_reward_benefits/{rewardId}": {
+      "schema": "RankRewardBenefit",
+      "description": "User rank milestone mining rewards."
+    },
+    "/gift_cards/{cardId}": {
+      "schema": "GiftCard",
+      "description": "User generated gift cards."
+    },
+    "/treasureInvestments/{invId}": {
+      "schema": "TreasureInvestment",
+      "description": "User investments in Treasure Briefcases."
+    },
+    "/security_threats/{threatId}": {
+      "schema": "SecurityThreat",
+      "description": "Security logs."
+    },
+    "/ip_blocks/{blockId}": {
+      "schema": "IPBlock",
+      "description": "Blocked IPs list."
+    },
+    "/feature_locks/{lockId}": {
+      "schema": "FeatureLock",
+      "description": "Feature status overrides."
+    },
+    "/connectivity_logs/{logId}": {
+      "schema": "ConnectivityLog",
+      "description": "User connection history and network metrics."
+    },
+    "/market_dealer_profiles/{profileId}": {
+      "schema": "MarketDealerProfile",
+      "description": "Dealer verification details and status."
+    },
+    "/admin_wallets/{walletId}": {
+      "schema": "AdminWallet",
+      "description": "Wallets for admins to manage payout funds."
+    },
+    "/admin_transactions/{txId}": {
+      "schema": "AdminTransaction",
+      "description": "Transactions history for admin wallets."
+    }
+  }
+}

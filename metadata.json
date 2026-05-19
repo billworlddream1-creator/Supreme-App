@@ -1,0 +1,5 @@
+{
+  "name": "Supreme",
+  "description": "The Ultimate Digital Power Platform - Featuring advanced wallet earnings, rank-based bonuses, follower monetization, Supreme Celeb Hub, and comprehensive admin analytics.",
+  "requestFramePermissions": ["camera", "microphone"]
+}
