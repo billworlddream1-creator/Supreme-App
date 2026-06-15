@@ -11,7 +11,8 @@ const app = initializeApp(firebaseConfig);
 // Enable long polling to improve connectivity in restricted environments (like iframes/proxies)
 export const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
-}, firebaseConfig.firestoreDatabaseId || '(default)');
+  useFetchStreams: false,
+} as any, firebaseConfig.firestoreDatabaseId || '(default)');
 
 export const analytics = typeof window !== 'undefined' && firebaseConfig.measurementId ? (async () => {
   try {

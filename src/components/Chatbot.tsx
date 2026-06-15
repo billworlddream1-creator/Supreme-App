@@ -157,7 +157,7 @@ export default function Chatbot() {
       }]);
 
       const responseText = await generateContent(currentInput, {
-        model: currentImage ? "gemini-2.0-flash" : "gemini-2.0-flash",
+        model: currentImage ? "gemini-3.5-flash" : "gemini-3.5-flash",
         parts,
         systemInstruction: SYSTEM_INSTRUCTION,
       });

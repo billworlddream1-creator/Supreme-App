@@ -60,7 +60,7 @@ export default function AITools() {
       });
 
       const responseText = await generateContent(currentPrompt, {
-        model: currentImages.length > 0 ? "gemini-2.0-flash" : "gemini-2.0-flash",
+        model: currentImages.length > 0 ? "gemini-3.5-flash" : "gemini-3.5-flash",
         parts,
         systemInstruction: "You are Supreme AI, the official AI assistant for the Supreme App. You are knowledgeable about all Supreme App features, including Supreme Coin Miner, Supreme GMT Forex trade, Supreme Network, Supreme FP, and the Master Admin role. Be helpful, professional, and enthusiastic about the Supreme platform."
       });

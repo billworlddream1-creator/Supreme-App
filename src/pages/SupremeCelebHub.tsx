@@ -2208,10 +2208,53 @@ export default function SupremeCelebHub() {
                     tabIndex={0}
                     onClick={() => setSelectedMemberId(member.id)}
                     className={clsx(
-                      "celeb-profile-card glass-panel p-4 rounded-2xl border flex items-center justify-between group",
+                      "celeb-profile-card glass-panel p-4 rounded-2xl border flex items-center justify-between group relative overflow-hidden",
                       selectedMemberId === member.id ? "selected" : "border-gray-200 bg-white"
                     )}
                   >
+                    {/* Hover Popover showing follower count and rank tier */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-4 bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-xl opacity-0 translate-y-1 scale-95 group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100 pointer-events-none transition-all duration-200 z-50 flex flex-col gap-2">
+                      <div className="flex items-center gap-2 border-b border-white/10 pb-1.5">
+                        <Crown className="w-4 h-4 text-amber-500" />
+                        <span className="font-bold text-xs uppercase tracking-wider text-amber-400">Supreme Rank Tier</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-400">Celebrity:</span>
+                        <span className="font-bold text-neutral-100">{member.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-400">Followers:</span>
+                        <span className="font-black text-emerald-400">{formatFollowers(member.followers)} Followers</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-400">Current Tier:</span>
+                        <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                          member.followers >= 1000000 
+                            ? "bg-purple-950 text-purple-300 border border-purple-800" 
+                            : member.followers >= 50000 
+                            ? "bg-amber-950 text-amber-300 border border-amber-800" 
+                            : member.followers >= 15000 
+                            ? "bg-blue-950 text-blue-300 border border-blue-800" 
+                            : "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                        }`}>
+                          {member.followers >= 1000000 
+                            ? "Global Star 🌟" 
+                            : member.followers >= 50000 
+                            ? "Elite Creator 💎" 
+                            : member.followers >= 15000 
+                            ? "Master Ambassador 🏆" 
+                            : "Rising Affiliate 🚀"}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-1">
+                        <div 
+                          className="bg-gradient-to-r from-amber-400 to-yellow-500 h-full rounded-full" 
+                          style={{ width: `${Math.min(100, (member.followers / (member.followers >= 1000000 ? 5000000 : member.followers >= 50000 ? 1000000 : member.followers >= 15000 ? 50000 : 15000)) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[9px] text-gray-500 text-right italic">Official Network Rank Badge</span>
+                    </div>
+
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-gray-100 overflow-hidden border-2 border-transparent group-hover:border-emerald-500/20 transition-all">
                         <img src={`https://picsum.photos/seed/member${member.id}/150`} alt={member.name} className="w-full h-full object-cover" />
@@ -2246,6 +2289,43 @@ export default function SupremeCelebHub() {
                         </>
                       )}
                     </button>
+
+                    {/* Hidden Hover Action Row – Slides up from absolute bottom */}
+                    <div className="absolute inset-x-0 bottom-0 h-14 bg-white/95 backdrop-blur-md border-t border-gray-100 flex items-center justify-around translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-10 px-3">
+                      <button 
+                        disabled={member.isFollowing}
+                        onClick={(e) => { e.stopPropagation(); handleFollow(member.id); }}
+                        className={clsx(
+                          "flex-1 mx-1.5 h-9 rounded-xl transition-all font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1 border",
+                          member.isFollowing 
+                            ? "bg-emerald-650/10 bg-emerald-50 text-emerald-600 border-emerald-200 cursor-not-allowed" 
+                            : "bg-emerald-600 text-white border-transparent hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-600/10"
+                        )}
+                      >
+                        {member.isFollowing ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Following</span>
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="w-3.5 h-3.5" />
+                            <span>Follow</span>
+                          </>
+                        )}
+                      </button>
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          toast.success(`Direct secure chat window with ${member.name} initiated!`); 
+                        }}
+                        className="flex-1 mx-1.5 h-9 bg-gray-900 text-white rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1 border border-transparent hover:bg-gray-800 transition-all hover:shadow-lg hover:shadow-gray-900/10"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Message</span>
+                      </button>
+                    </div>
+
                   </motion.div>
                 ))}
                 </div>

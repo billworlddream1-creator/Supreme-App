@@ -109,7 +109,7 @@ const UserItem = React.memo(({ user, onClick }: { user: SupremeUser, onClick: (u
   >
     <div className="relative shrink-0">
       <img 
-        src={user.avatar} 
+        src={user.avatar || null} 
         alt={user.name} 
         className="w-10 h-10 rounded-full object-cover border border-gray-200 group-hover:scale-110 transition-transform" 
         loading="lazy"
@@ -231,7 +231,7 @@ export default function SupremeUsersWidget() {
             
             <div className="p-8 text-center max-h-[90vh] overflow-y-auto custom-scrollbar">
               <div className="w-32 h-32 mx-auto rounded-full bg-gray-100 overflow-hidden shadow-xl border-4 border-white mb-6">
-                <img src={zoomedUser.avatar} alt={zoomedUser.name} className="w-full h-full object-cover" />
+                <img src={zoomedUser.avatar || null} alt={zoomedUser.name} className="w-full h-full object-cover" />
               </div>
               <h2 className="text-3xl font-bold text-[var(--color-supreme-text)] mb-2">{zoomedUser.name}</h2>
               <div className="flex items-center justify-center gap-3 text-gray-500 font-medium text-lg mb-4">

@@ -17,11 +17,44 @@ function getGenAI() {
   if (!genAI) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not configured in environment variables.");
+      throw new Error("The GEMINI_API_KEY is not configured in environment variables. Please add it via the Settings menu (gear icon) in the upper right corner.");
     }
-    genAI = new GoogleGenAI({ apiKey });
+    genAI = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
   }
   return genAI;
+}
+
+function handleAIError(error: any, res: express.Response) {
+  console.error("AI Generation Error Details:", error);
+  let message = "AI Generation failed";
+  if (error instanceof Error) {
+    message = error.message;
+  } else if (typeof error === 'string') {
+    message = error;
+  } else if (error && typeof error === 'object') {
+    message = error.message || JSON.stringify(error);
+  }
+  
+  if (
+    message.includes("API key not valid") || 
+    message.includes("API_KEY_INVALID") || 
+    message.includes("400") || 
+    message.includes("invalid key") ||
+    message.includes("is not configured")
+  ) {
+    return res.status(400).json({
+      error: "The GEMINI_API_KEY is not configured or is invalid. Please visit the application's Settings menu (gear icon) in the top right to verify/configure your API Key."
+    });
+  }
+  
+  return res.status(500).json({ error: message });
 }
 
 let stripeClient: Stripe | null = null;
@@ -264,7 +297,7 @@ async function startServer() {
       const ai = getGenAI();
       
       const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-3.5-flash",
         contents: [{ role: "user", parts: [{ text: `Generate a compelling advertisement based on this prompt: "${prompt}". 
         Return the result as a JSON object with title, description, cta (call to action), and style (backgroundColor, textColor, fontFamily).
         The style should be modern and high-end.` }]}],
@@ -293,8 +326,7 @@ async function startServer() {
 
       res.json(JSON.parse(result.text));
     } catch (error) {
-      console.error("AI Content Generation Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "AI generation failed" });
+      handleAIError(error, res);
     }
   });
 
@@ -315,7 +347,7 @@ async function startServer() {
       const ai = getGenAI();
 
       const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-3.5-flash",
         contents: [{ role: "user", parts: [{ text: `Provide 3 cutting-edge market insights/trends for the category: "${category}". 
         Focus on high-growth areas, emerging tech, or strategic investment opportunities.
         Return as a JSON array of objects with title, insight, probability (0.1 to 1.0), impact (low, medium, high, supreme), and relatedSectors (array of strings).` }]}],
@@ -340,14 +372,13 @@ async function startServer() {
 
       res.json(JSON.parse(result.text));
     } catch (error) {
-      console.error("Discovery Insights Generation Error:", error);
-      res.status(500).json({ error: "Discovery insights failed" });
+      handleAIError(error, res);
     }
   });
 
   app.post("/api/ai/generate", async (req, res) => {
     try {
-      const { prompt, model: modelName = "gemini-2.0-flash", systemInstruction, parts: inputParts } = req.body;
+      const { prompt, model: modelName = "gemini-3.5-flash", systemInstruction, parts: inputParts } = req.body;
       const ai = getGenAI();
       
       let contents;
@@ -357,8 +388,13 @@ async function startServer() {
         contents = [{ role: "user", parts: [{ text: prompt }] }];
       }
 
+      let finalModel = modelName;
+      if (finalModel === "gemini-2.0-flash" || !finalModel) {
+        finalModel = "gemini-3.5-flash";
+      }
+
       const result = await ai.models.generateContent({
-        model: modelName,
+        model: finalModel,
         contents,
         config: {
           systemInstruction
@@ -367,8 +403,7 @@ async function startServer() {
 
       res.json({ text: result.text });
     } catch (error) {
-      console.error("Generic AI Generation Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : "AI generation failed" });
+      handleAIError(error, res);
     }
   });
 
@@ -377,7 +412,7 @@ async function startServer() {
       const ai = getGenAI();
 
       const result = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
+        model: "gemini-3.5-flash",
         contents: [{ role: "user", parts: [{ text: `Generate 4 cutting-edge tech inventions or creations for 2026. 
         Include one from each category: Vehicles (e.g. hypercars, VTOL), Devices (e.g. neural interfaces), Machines (e.g. humanoid robotics), and Computing (e.g. quantum processors).
         Return as a JSON array of objects with name, category, description, specifications (array of 3 technical specs), status, impactScore (1-100), and image (use a relevant Unsplash URL).` }]}],
@@ -405,8 +440,7 @@ async function startServer() {
       const data = JSON.parse(result.text);
       res.json(data.map((item: any, index: number) => ({ ...item, id: `tech-${index}` })));
     } catch (error) {
-           console.error("Tech Inventions Generation Error:", error);
-      res.status(500).json({ error: "Tech inventions failed" });
+      handleAIError(error, res);
     }
   });
 

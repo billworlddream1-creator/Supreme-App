@@ -274,7 +274,7 @@ const UserCard = React.memo(({
   >
     <div className="flex items-center gap-4 3xl:gap-8 4xl:gap-12 5xl:gap-16 mb-6 3xl:mb-10">
       <div className="w-16 h-16 3xl:w-24 3xl:h-24 4xl:w-36 4xl:h-36 5xl:w-56 5xl:h-56 rounded-full bg-gray-100 overflow-hidden group-hover:scale-105 transition-transform">
-        <img src={user.avatar} alt={user.name} loading="lazy" className="w-full h-full object-cover" />
+        <img src={user.avatar || null} alt={user.name} loading="lazy" className="w-full h-full object-cover" />
       </div>
       <div className="flex-1">
         <div className="flex items-center gap-2 3xl:gap-4 flex-wrap">
@@ -1026,7 +1026,7 @@ export default function SupremeUsers() {
                 
                 <div className="flex items-center gap-4 3xl:gap-8 4xl:gap-12 5xl:gap-16 mb-6 3xl:mb-10 relative z-10">
                   <div className="w-16 h-16 3xl:w-24 3xl:h-24 4xl:w-36 4xl:h-36 5xl:w-56 5xl:h-56 rounded-full p-1 bg-gradient-to-br from-[var(--color-supreme-gold)] to-yellow-200">
-                    <img src={user.avatar} alt={user.name} className="w-full h-full rounded-full object-cover border-2 border-white" />
+                    <img src={user.avatar || null} alt={user.name} className="w-full h-full rounded-full object-cover border-2 border-white" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2 3xl:gap-4">

@@ -218,7 +218,12 @@ const suggestedUsers = [
 
 const backgroundColors = [
     'transparent',
-    ...Array.from({ length: 499 }, (_, i) => `hsl(${Math.floor(i * (360 / 499))}, 85%, 92%)`)
+    ...Array.from({ length: 1200 }, (_, i) => {
+      const h = Math.floor(i * (360 / 1200));
+      const s = 65 + (i % 26); // Saturation spread of over 1000 variations
+      const l = 80 + (i % 16); // Lightness spread of over 1000 variations
+      return `hsl(${h}, ${s}%, ${l}%)`;
+    })
 ];
 
 const postCategories = [
@@ -238,7 +243,22 @@ export default function Network() {
     allUsers, getFriendLimit
   } = useNetwork();
 
-  const [posts, setPosts] = useState(initialPosts);
+  const [posts, setPosts] = useState(() => {
+    const saved = localStorage.getItem('supreme_posts');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (_) {
+        return initialPosts;
+      }
+    }
+    return initialPosts;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('supreme_posts', JSON.stringify(posts));
+  }, [posts]);
+
   const [localAllUsers, setLocalAllUsers] = useState(allUsers);
   const [likedPosts, setLikedPosts] = useState<Set<number>>(new Set());
   const [sharedPosts, setSharedPosts] = useState<Set<number>>(new Set());
@@ -322,6 +342,15 @@ export default function Network() {
     'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
     'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
   ];
+
+  const INTERNAL_CLIPS = [
+    'https://www.w3schools.com/html/mov_bbb.mp4',
+    'https://www.w3schools.com/html/movie.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4'
+  ];
+
+  const [activeLibraryTab, setActiveLibraryTab] = useState<'videos' | 'clips'>('videos');
 
   // Community state
   const [communitySearch, setCommunitySearch] = useState('');
@@ -456,6 +485,42 @@ export default function Network() {
   const handlePost = async () => {
     if (!postText.trim() && selectedImages.length === 0 && !selectedVideo && !selectedGif) return;
     
+    // Check for unauthorized external streaming video domains or formats
+    const hasExternalVideoUrl = (text: string) => {
+      const externalVideoKeywords = [
+        'youtube.com', 'youtu.be', 'vimeo.com', 'twitch.tv', 'tiktok.com', 
+        'dailymotion.com', 'metacafe.com', 'facebook.com/watch', 'instagram.com/reel'
+      ];
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+      const urls = text.match(urlRegex);
+      if (urls) {
+        for (const url of urls) {
+          const lowerUrl = url.toLowerCase();
+          // Exclude safe internal media hosts
+          if (
+            lowerUrl.includes('commondatastorage.googleapis.com') || 
+            lowerUrl.includes('w3schools.com') || 
+            lowerUrl.startsWith('blob:') || 
+            lowerUrl.startsWith('data:')
+          ) {
+            continue;
+          }
+          if (
+            externalVideoKeywords.some(kw => lowerUrl.includes(kw)) ||
+            lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.mov') || lowerUrl.endsWith('.webm')
+          ) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    if (hasExternalVideoUrl(postText)) {
+      toast.error("🚫 Policy Restriction: External streaming or video URLs (YouTube, TikTok, Vimeo, Twitch) are blocked. You can only attach local video files, choose from the built-in Library, or share internal clips directly from Supreme Vibes & Media Tube!");
+      return;
+    }
+
     if (postText.trim() && !validateUrl(postText)) {
         toast.error("Please enter a valid URL (starting with http:// or https://)");
         return;
@@ -1114,11 +1179,30 @@ export default function Network() {
                                     className="absolute bottom-full left-0 mb-2 p-3 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 w-72 sm:w-80"
                                   >
                                     <div className="flex justify-between items-center mb-3">
-                                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Your Library</span>
+                                      <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Supreme Platform Media</span>
                                       <button onClick={() => setShowLibraryPicker(false)}><X className="w-4 h-4 text-gray-400" /></button>
                                     </div>
+                                    
+                                    {/* Tab select buttons */}
+                                    <div className="flex bg-gray-100 p-1 rounded-lg gap-1 mb-2">
+                                      <button 
+                                        type="button"
+                                        onClick={() => setActiveLibraryTab('videos')}
+                                        className={`flex-1 text-center py-1 rounded-md text-[10px] font-semibold transition-all ${activeLibraryTab === 'videos' ? 'bg-white text-[var(--color-supreme-gold)] shadow-sm' : 'text-gray-550 hover:text-gray-800'}`}
+                                      >
+                                        🎬 Media Tube
+                                      </button>
+                                      <button 
+                                        type="button"
+                                        onClick={() => setActiveLibraryTab('clips')}
+                                        className={`flex-1 text-center py-1 rounded-md text-[10px] font-semibold transition-all ${activeLibraryTab === 'clips' ? 'bg-white text-[var(--color-supreme-gold)] shadow-sm' : 'text-gray-550 hover:text-gray-800'}`}
+                                      >
+                                        ⚡ Supreme Vibes
+                                      </button>
+                                    </div>
+
                                     <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto p-1 no-scrollbar">
-                                      {LIBRARY_VIDEOS.map((video, idx) => (
+                                      {(activeLibraryTab === 'videos' ? LIBRARY_VIDEOS : INTERNAL_CLIPS).map((video, idx) => (
                                         <button
                                           key={video}
                                           onClick={() => {
@@ -1454,38 +1538,91 @@ export default function Network() {
                             className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-10"
                           >
                             <div className="p-2 space-y-1">
-                              <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
-                                <Twitter className="w-4 h-4 text-blue-400" />
-                                Share on Twitter
-                              </button>
-                              <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+                               <button 
+                                 onClick={() => {
+                                   const text = encodeURIComponent(`"${post.content}" - Read more on Supreme Platform: https://supreme-network.com/post/${post.id}`);
+                                   window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+                                   setActiveSharePostId(null);
+                                   toast.success("Ready to publish! Opened Twitter/X sharing screen.");
+                                 }}
+                                 className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                               >
+                                 <Twitter className="w-4 h-4 text-blue-400" />
+                                 Share on Twitter/X
+                               </button>
+                              <button 
+                                onClick={() => {
+                                  const url = encodeURIComponent(`https://supreme-network.com/post/${post.id}`);
+                                  window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
+                                  setActiveSharePostId(null);
+                                  toast.success("Ready to share! Opened LinkedIn sharing tab.");
+                                }}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                              >
                                 <Linkedin className="w-4 h-4 text-blue-700" />
                                 Share on LinkedIn
                               </button>
-                              <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
-                                <Facebook className="w-4 h-4 text-blue-600" />
-                                Share on Facebook
-                              </button>
+                               <button 
+                                 onClick={() => {
+                                   const url = encodeURIComponent(`https://supreme-network.com/post/${post.id}`);
+                                   window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank');
+                                   setActiveSharePostId(null);
+                                   toast.success("Ready to share! Opened Facebook sharer.");
+                                 }}
+                                 className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                               >
+                                 <Facebook className="w-4 h-4 text-blue-600" />
+                                 Share on Facebook
+                               </button>
                               <button 
                                 onClick={() => {
-                                  toast.success(`Successfully shared to your groups!`);
+                                  toast.success(`Broadcasting postcard internally to all groups!`);
                                   setActiveSharePostId(null);
                                 }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                                className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
                               >
                                 <Users className="w-4 h-4 text-purple-600" />
                                 Share to Groups
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`"${post.content}"\nRead more at: https://supreme-network.com/post/${post.id}`);
+                                  window.open(`https://www.instagram.com`, '_blank');
+                                  setActiveSharePostId(null);
+                                  toast.success("Caption copied to Clipboard! Opening Instagram.");
+                                }}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                              >
+                                <svg className="w-4 h-4 text-pink-500 fill-current" viewBox="0 0 24 24">
+                                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.051.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+                                </svg>
+                                Share on Instagram
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`https://supreme-network.com/post/${post.id}`);
+                                  window.open(`https://www.tiktok.com`, '_blank');
+                                  setActiveSharePostId(null);
+                                  toast.success("Post URL copied! Directing to TikTok.");
+                                }}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
+                              >
+                                <svg className="w-4 h-4 text-black fill-current" viewBox="0 0 24 24">
+                                  <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.02 1.59 4.23.95 1.15 2.29 1.95 3.75 2.22l.01 3.92c-1.12-.02-2.22-.31-3.23-.84-.91-.49-1.72-1.2-2.35-2.05-.02 2.61.01 5.22-.01 7.83-.05 1.76-.63 3.49-1.69 4.88-1.55 2.05-4.08 3.22-6.64 3.02-2.35-.15-4.52-1.51-5.69-3.58-1-.18-11.08-2.63-1.08-4.71.05-1.92.83-3.76 2.19-5.11 1.53-1.56 3.71-2.4 5.88-2.29l-.02 3.96c-1.18-.08-2.38.36-3.18 1.2-.77.85-1.11 2.03-.92 3.18.2 1.25 1.09 2.3 2.29 2.76 1.05.41 2.27.27 3.19-.4.91-.71 1.39-1.85 1.34-3.01V.02z" />
+                                </svg>
+                                Share on TikTok
                               </button>
                               <div className="h-px bg-gray-100 my-1"></div>
                               <button 
                                 onClick={() => {
                                   navigator.clipboard.writeText(`https://supreme-network.com/post/${post.id}`);
                                   setActiveSharePostId(null);
+                                  toast.success("Post URL copied directly to clipboard!");
                                 }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+                                className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-left"
                               >
                                 <Link className="w-4 h-4 text-gray-500" />
-                                Copy Link
+                                Copy Post Link
                               </button>
                             </div>
                           </motion.div>

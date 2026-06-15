@@ -264,7 +264,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Check for same IP with different role
-      if (ip !== 'unknown') {
+      // Bypass in development, localhost, or deployment preview environments where testers need to test multiple roles
+      const isDevOrPreview = import.meta.env.DEV || 
+                            window.location.hostname.includes('localhost') || 
+                            window.location.hostname.includes('run.app') ||
+                            window.location.hostname.includes('127.0.0.1');
+
+      if (ip !== 'unknown' && !isDevOrPreview) {
         const q = query(collection(db, 'users'), where('ipAddress', '==', ip));
         const snapshot = await getDocs(q);
         const existingRoles = snapshot.docs.map(doc => (doc.data() as UserProfile).role);
@@ -318,6 +324,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       playNewUserSignup();
     } catch (error: any) {
       console.error("Signup failed", error);
+      if (error.message && error.message.includes("Security Restriction")) {
+        throw error;
+      }
       handleFirestoreError(error, OperationType.WRITE, `users/unknown`);
       throw error;
     }

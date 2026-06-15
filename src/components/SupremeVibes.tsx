@@ -6,6 +6,7 @@ import { useNetwork } from '../context/NetworkContext';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { clsx } from 'clsx';
+import { toast } from 'sonner';
 
 const MOCK_VIBES = Array.from({ length: 15 }).map((_, i) => ({
   id: `vibe-${i}`,
@@ -70,6 +71,51 @@ const VibePlayer = ({ item, isActive, isMuted, toggleMute }: { key?: string | nu
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSettings, setShowSettings] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareCaption, setShareCaption] = useState('');
+  const [shareCategory, setShareCategory] = useState('Trending');
+
+  const handleShareToFeed = () => {
+    // Get stored posts
+    const saved = localStorage.getItem('supreme_posts');
+    let postsList: any[] = [];
+    if (saved) {
+      try {
+        postsList = JSON.parse(saved);
+      } catch (_) {
+        postsList = [];
+      }
+    }
+    
+    const newPost = {
+      id: Date.now(),
+      author: user?.name || 'Supreme Vibes Fan',
+      handle: user?.email ? `@${user.email.split('@')[0]}` : '@suprememember',
+      avatar: 'https://picsum.photos/seed/me/150',
+      content: shareCaption,
+      images: [],
+      video: item.url, // Share the vibes internal video URL
+      likes: 0,
+      dislikes: 0,
+      comments: 0,
+      shares: 0,
+      time: 'Just now',
+      bgColor: 'transparent',
+      transformType: 'normal',
+      category: shareCategory,
+      privacy: 'public',
+      authorFollowers: 1200,
+      authorRank: 'Member',
+      authorRankColor: 'text-orange-700',
+      isPinned: false,
+      gif: null,
+      type: 'video'
+    };
+    
+    localStorage.setItem('supreme_posts', JSON.stringify([newPost, ...postsList]));
+    setShowShareModal(false);
+    toast.success("🚀 Shared vibe clip to Supreme Feed successfully! Check it out in the Network Feed.");
+  };
 
   const streamingSub = getSubscription('streaming');
   const generalSub = getSubscription('general');
@@ -401,9 +447,16 @@ const VibePlayer = ({ item, isActive, isMuted, toggleMute }: { key?: string | nu
           </span>
         </button>
 
-        <button className="flex flex-col items-center gap-1 group/btn">
+        <button 
+          onClick={() => {
+            setShareCaption(`Look at this amazing Supreme Vibes clip from @${item.author}! Shared with the Supreme Network.`);
+            setShowShareModal(true);
+          }}
+          className="flex flex-col items-center gap-1 group/btn"
+          title="Share to Supreme Feed"
+        >
           <div className="p-3 bg-black/40 group-hover/btn:bg-black/60 backdrop-blur-md rounded-full transition-colors">
-            <Share2 className="w-6 h-6 text-white" />
+            <Share2 className="w-6 h-6 text-white text-[var(--color-supreme-gold)]" />
           </div>
           <span className="text-white text-xs font-bold drop-shadow-md">{formatNumber(item.shares)}</span>
         </button>
@@ -462,6 +515,93 @@ const VibePlayer = ({ item, isActive, isMuted, toggleMute }: { key?: string | nu
           </div>
         </div>
       )}
+
+      {/* Share to Feed Modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-35 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 text-white"
+            onClick={() => setShowShareModal(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-neutral-900 border border-neutral-800 rounded-3xl p-5 w-full max-w-sm shadow-2xl overflow-hidden relative text-left"
+            >
+              {/* Premium Top Border Indicator */}
+              <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-[var(--color-supreme-gold)] to-yellow-600" />
+              
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="text-sm font-bold flex items-center gap-1.5 text-neutral-100">
+                  <Share2 className="w-4 h-4 text-[var(--color-supreme-gold)]" /> Share Vibe to Feed
+                </h4>
+                <button 
+                  onClick={() => setShowShareModal(false)}
+                  className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-neutral-850 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="bg-neutral-950/60 p-2.5 rounded-xl border border-neutral-800 text-left">
+                  <p className="text-[10px] text-[var(--color-supreme-gold)] font-mono uppercase tracking-widest mb-0.5">Vibe ID: {item.mediaId}</p>
+                  <h5 className="text-xs font-bold text-neutral-200 truncate">@{item.author} Video Clip</h5>
+                  <p className="text-[10px] text-neutral-400 line-clamp-1">{item.description}</p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1 font-mono">My Commentary</label>
+                  <textarea
+                    value={shareCaption}
+                    onChange={(e) => setShareCaption(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 bg-neutral-950 text-white placeholder-neutral-550 border border-neutral-800 rounded-xl focus:outline-none focus:border-[var(--color-supreme-gold)] text-xs resize-none"
+                    placeholder="Reflections on this awesome clip..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-1 font-mono">Platform Category</label>
+                  <select 
+                    value={shareCategory}
+                    onChange={(e) => setShareCategory(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-neutral-950 border border-neutral-800 rounded-lg text-[11px] text-neutral-200 outline-none"
+                  >
+                    <option value="Trending">Trending</option>
+                    <option value="News">News</option>
+                    <option value="Tech">Tech</option>
+                    <option value="Gaming">Gaming</option>
+                    <option value="Music">Music</option>
+                  </select>
+                </div>
+
+                <div className="flex gap-2 pt-2 text-xs">
+                  <button 
+                    type="button"
+                    onClick={() => setShowShareModal(false)}
+                    className="flex-1 py-2 bg-neutral-800 text-neutral-300 hover:text-white rounded-lg hover:bg-neutral-700 font-bold"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleShareToFeed}
+                    className="flex-1 py-2 bg-[var(--color-supreme-gold)] text-amber-950 font-bold rounded-lg hover:opacity-95 shadow-md"
+                  >
+                    Share Now
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

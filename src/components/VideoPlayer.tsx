@@ -24,10 +24,12 @@ interface VideoPlayerProps {
   autoPlay?: boolean;
   onNext?: () => void;
   onPrev?: () => void;
+  onEnded?: () => void;
+  loop?: boolean;
   captions?: { label: string; src: string; srclang: string; default?: boolean }[];
 }
 
-export default function VideoPlayer({ src, poster, autoPlay = false, onNext, onPrev, captions }: VideoPlayerProps) {
+export default function VideoPlayer({ src, poster, autoPlay = false, onNext, onPrev, onEnded, loop = false, captions }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -281,6 +283,7 @@ export default function VideoPlayer({ src, poster, autoPlay = false, onNext, onP
         src={src}
         poster={poster}
         autoPlay={autoPlay && !isAdPlaying}
+        loop={loop}
         className={clsx("w-full h-full object-contain cursor-pointer", isAdPlaying && "hidden")}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
@@ -289,6 +292,7 @@ export default function VideoPlayer({ src, poster, autoPlay = false, onNext, onP
         onClick={togglePlay}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        onEnded={onEnded}
         aria-label="Video Player"
         playsInline
       >

@@ -285,32 +285,310 @@ export default function SupremeCoinOptimum() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-[var(--color-bet-purple-dark)]">
-        <div className="relative flex items-center justify-center w-32 h-32 mb-6">
-          <motion.div
-            className="absolute inset-0 border-4 border-[var(--color-supreme-gold)]/20 rounded-full"
+      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-[var(--color-bet-purple-dark)] relative overflow-hidden">
+        {/* Galaxy, Star, and Moon Light Background */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+          {/* Deep Space base glow */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(15,3,30,0.5)_0%,rgba(5,1,10,0.95)_100%)] opacity-90" />
+          
+          {/* Nebula clouds */}
+          <motion.div 
+            animate={{ 
+              scale: [1, 1.2, 1],
+              opacity: [0.15, 0.3, 0.15],
+              rotate: [0, 90, 180, 270, 360]
+            }}
+            transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+            className="absolute top-[-20%] right-[-20%] w-[80vw] h-[80vw] max-w-[600px] bg-gradient-to-br from-purple-800/30 via-pink-600/15 to-transparent rounded-full blur-[100px]"
           />
-          <motion.div
-            className="absolute inset-0 border-4 border-[var(--color-supreme-gold)] rounded-full border-t-transparent"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          <motion.div 
+            animate={{ 
+              scale: [1, 1.3, 1],
+              opacity: [0.1, 0.25, 0.1],
+              rotate: [360, 270, 180, 90, 0]
+            }}
+            transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
+            className="absolute bottom-[-20%] left-[-20%] w-[60vw] h-[60vw] max-w-[500px] bg-gradient-to-tr from-amber-600/15 via-[var(--color-supreme-gold)]/10 to-transparent rounded-full blur-[90px]"
           />
-          <motion.div
-            animate={{ scale: [1, 1.1, 1] }}
-            transition={{ duration: 1, repeat: Infinity }}
-          >
-            <Cpu className="w-12 h-12 text-[var(--color-supreme-gold)]" />
-          </motion.div>
+
+          {/* Golden Sovereign Crescent Moon Layered Assembly */}
+          <div className="absolute top-10 right-10 w-44 h-44 select-none pointer-events-none">
+            <div className="absolute top-4 right-4 w-28 h-28 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.12)_0%,transparent_70%)] blur-xl rounded-full" />
+            
+            {/* Core Crescent Arc Layer 1 */}
+            <motion.div
+              animate={{
+                opacity: [0.5, 0.95, 0.5],
+                rotate: [15, 18, 15]
+              }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-4 right-4 w-28 h-28 rounded-full bg-transparent shadow-[12px_12px_0_0_rgba(252,211,77,0.85)] filter blur-[0.5px] drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]"
+            />
+            
+            {/* Core Crescent Arc Layer 2 */}
+            <motion.div
+              animate={{
+                opacity: [0.8, 0.3, 0.8],
+                rotate: [10, 14, 10]
+              }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 0.8 }}
+              className="absolute top-4 right-4 w-28 h-28 rounded-full bg-transparent shadow-[9px_9px_0_0_rgba(245,158,11,0.6)] filter blur-[1px]"
+            />
+
+            {/* Core Crescent Arc Layer 3 - Ultra thin flash flare piece */}
+            <motion.div
+              animate={{
+                opacity: [0.15, 0.85, 0.15],
+                rotate: [20, 15, 20]
+              }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut", delay: 1.2 }}
+              className="absolute top-5 right-5 w-26 h-26 rounded-full bg-transparent shadow-[14px_14px_0_0_rgba(255,255,255,0.9)] filter blur-[0.2px] drop-shadow-[0_0_15px_rgba(255,255,255,0.7)]"
+            />
+          </div>
+
+          {/* Twinkling Space Stars */}
+          {[...Array(20)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute bg-white rounded-full"
+              style={{
+                width: i % 3 === 0 ? '3px' : i % 2 === 0 ? '2px' : '1px',
+                height: i % 3 === 0 ? '3px' : i % 2 === 0 ? '2px' : '1px',
+                top: `${(i * 7 + 11) % 100}%`,
+                left: `${(i * 13 + 7) % 100}%`,
+                boxShadow: i % 3 === 0 ? '0 0 8px rgba(255, 255, 255, 0.8)' : 'none'
+              }}
+              animate={{ 
+                opacity: [0.2, 1, 0.2],
+                scale: [0.8, 1.2, 0.8]
+              }}
+              transition={{
+                duration: 2 + (i % 4),
+                repeat: Infinity,
+                delay: i * 0.2,
+                ease: "easeInOut"
+              }}
+            />
+          ))}
         </div>
-        <h2 className="text-2xl font-bold text-white tracking-wider">Optimum Miner</h2>
-        <p className="text-purple-200/60 mt-2 font-medium">Initializing cloud mining rigs...</p>
+        
+        {/* Center alignment wrap */}
+        <div className="relative z-10 flex flex-col items-center justify-center">
+          <div className="relative flex items-center justify-center w-32 h-32 mb-6">
+            <motion.div
+              className="absolute inset-0 border-4 border-[var(--color-supreme-gold)]/20 rounded-full"
+            />
+            <motion.div
+              className="absolute inset-0 border-4 border-[var(--color-supreme-gold)] rounded-full border-t-transparent"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            />
+            <motion.div
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 1, repeat: Infinity }}
+            >
+              <Cpu className="w-12 h-12 text-[var(--color-supreme-gold)]" />
+            </motion.div>
+          </div>
+          <h2 className="text-2xl font-bold text-white tracking-wider">Optimum Miner</h2>
+          <p className="text-purple-200/60 mt-2 font-medium">Initializing cloud mining rigs...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-bet-purple-dark)] py-8">
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-[var(--color-bet-purple-dark)] py-8 relative overflow-hidden">
+      {/* Cosmic space scenery: Galaxy, Starfield, and Golden Moon light */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        {/* Soft space vignette */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(20,5,40,0.4)_0%,rgba(4,1,10,0.95)_100%)] opacity-95" />
+
+        {/* Sovereign Crescent Moon (Pieces of crescent flash moon light) */}
+        <div className="absolute top-24 right-[8%] w-60 h-60 hidden lg:block select-none pointer-events-none z-10">
+          {/* Ambient Moon Glow behind pieces */}
+          <div className="absolute top-10 right-10 w-40 h-40 bg-[radial-gradient(circle_at_center,rgba(251,191,36,0.18)_0%,transparent_70%)] blur-2xl rounded-full" />
+          
+          {/* Core Crescent Arc Layer 1 */}
+          <motion.div
+            animate={{
+              opacity: [0.4, 0.95, 0.4],
+              scale: [0.98, 1.02, 0.98],
+              rotate: [15, 18, 15]
+            }}
+            transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-8 right-8 w-36 h-36 rounded-full bg-transparent shadow-[16px_16px_0_0_rgba(252,211,77,0.9)] filter blur-[0.5px] drop-shadow-[0_0_30px_rgba(251,191,36,0.6)]"
+          />
+
+          {/* Core Crescent Arc Layer 2 - Shifter offset piece creating layered structure */}
+          <motion.div
+            animate={{
+              opacity: [0.8, 0.3, 0.8],
+              scale: [1.02, 0.98, 1.02],
+              rotate: [10, 14, 10]
+            }}
+            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+            className="absolute top-8 right-8 w-36 h-36 rounded-full bg-transparent shadow-[12px_12px_0_0_rgba(245,158,11,0.7)] filter blur-[1px] drop-shadow-[0_0_15px_rgba(245,158,11,0.4)]"
+          />
+
+          {/* Core Crescent Arc Layer 3 - Ultra thin flash flare piece */}
+          <motion.div
+            animate={{
+              opacity: [0.1, 0.8, 0.1],
+              scale: [0.95, 1.05, 0.95],
+              rotate: [20, 15, 20]
+            }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
+            className="absolute top-10 right-10 w-32 h-32 rounded-full bg-transparent shadow-[18px_18px_0_0_rgba(255,255,255,0.95)] filter blur-[0.2px] drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]"
+          />
+
+          {/* Shard Piece 1 - Flashing auxiliary crescent fragment */}
+          <motion.div
+            animate={{
+              opacity: [0.2, 0.7, 0.2],
+              rotate: [-20, -10, -20],
+              scale: [0.85, 0.9, 0.85]
+            }}
+            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+            className="absolute top-4 right-20 w-24 h-24 rounded-full bg-transparent shadow-[8px_8px_0_0_rgba(251,191,36,0.6)] drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]"
+          />
+
+          {/* Shard Piece 2 - Micro gold flare edge */}
+          <motion.div
+            animate={{
+              opacity: [0.1, 0.9, 0.1],
+              rotate: [45, 50, 45],
+              scale: [1.1, 1.15, 1.1]
+            }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
+            className="absolute top-12 right-4 w-28 h-28 rounded-full bg-transparent shadow-[6px_6px_0_0_rgba(255,255,255,0.8)] blur-[0.5px]"
+          />
+
+          {/* Orbital Golden Rays / Corona Arcs (Pieces of glowing orbital rings) */}
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 40, repeat: Infinity, ease: "linear" }}
+            className="absolute -inset-2 border-t border-r border-[var(--color-supreme-gold)]/15 rounded-full filter blur-[0.5px]"
+          />
+          <motion.div
+            animate={{ rotate: -360 }}
+            transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
+            className="absolute -inset-8 border-b border-l border-amber-500/10 rounded-full border-dashed"
+          />
+        </div>
+
+        {/* Moonlight glow beam */}
+        <div className="absolute top-0 right-[2%] w-[40vw] h-[60vh] bg-gradient-to-b from-amber-500/5 via-yellow-500/2 to-transparent blur-[60px] transform -rotate-12 hidden lg:block pointer-events-none" />
+
+        {/* Floating Galaxy Nebulas */}
+        <motion.div 
+          animate={{
+            scale: [1, 1.15, 1],
+            x: [0, 30, 0],
+            y: [0, 20, 0],
+            opacity: [0.15, 0.25, 0.15]
+          }}
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[15%] left-[-15%] w-[800px] h-[800px] bg-purple-900/15 rounded-full blur-[120px]"
+        />
+        <motion.div 
+          animate={{
+            scale: [1, 1.25, 1],
+            x: [0, -40, 0],
+            y: [0, -30, 0],
+            opacity: [0.1, 0.2, 0.1]
+          }}
+          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute bottom-[20%] right-[-15%] w-[700px] h-[700px] bg-pink-700/10 rounded-full blur-[140px]"
+        />
+        <motion.div 
+          animate={{
+            scale: [1, 1.1, 1],
+            x: [0, 20, 0],
+            y: [0, -15, 0],
+            opacity: [0.12, 0.22, 0.12]
+          }}
+          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[50%] left-[25%] w-[600px] h-[600px] bg-amber-600/10 rounded-full blur-[110px]"
+        />
+
+        {/* Twinkling Star Field (42 stars of different settings) */}
+        {[...Array(42)].map((_, i) => (
+          <motion.div
+            key={`main-star-${i}`}
+            className="absolute bg-white rounded-full"
+            style={{
+              width: i % 4 === 0 ? '3px' : i % 3 === 0 ? '2px' : '1px',
+              height: i % 4 === 0 ? '3px' : i % 3 === 0 ? '2px' : '1px',
+              top: `${(i * 9.7 + 5) % 96}%`,
+              left: `${(i * 12.3 + i * 2 + 3) % 98}%`,
+              boxShadow: i % 4 === 0 ? '0 0 10px rgba(255, 255, 255, 0.9), 0 0 4px rgba(251, 191, 36, 0.4)' : 'none'
+            }}
+            animate={{ 
+              opacity: [0.15, 1, 0.15],
+              scale: i % 5 === 0 ? [0.6, 1.3, 0.6] : [0.8, 1.1, 0.8]
+            }}
+            transition={{
+              duration: 2.5 + (i % 5),
+              repeat: Infinity,
+              delay: (i * 0.13) % 4,
+              ease: "easeInOut"
+            }}
+          />
+        ))}
+
+        {/* Animated Shooting Stars */}
+        {[...Array(3)].map((_, i) => (
+          <motion.div
+            key={`shooting-star-${i}`}
+            className="absolute h-[1px] bg-gradient-to-r from-transparent via-white to-amber-200"
+            style={{
+              width: '90px',
+              top: `${15 + i * 30}%`,
+              left: `${10 + i * 25}%`,
+              rotate: '-35deg',
+              opacity: 0,
+            }}
+            animate={{
+              x: [-100, 350],
+              y: [-70, 245],
+              opacity: [0, 0.9, 0],
+            }}
+            transition={{
+              duration: 1.5,
+              repeat: Infinity,
+              repeatDelay: 12 + i * 15,
+              delay: i * 6,
+              ease: "easeOut"
+            }}
+          />
+        ))}
+
+        {/* Ethereal Floating Space Particles */}
+        {[...Array(15)].map((_, i) => (
+          <motion.div
+            key={`float-dust-${i}`}
+            className="absolute w-1 h-1 bg-amber-400/30 rounded-full blur-[1px]"
+            style={{
+              top: `${(i * 14.7 + 25) % 90}%`,
+              left: `${(i * 19.3 + 12) % 92}%`,
+            }}
+            animate={{
+              y: [0, -40, 0],
+              x: [0, 20, 0],
+              opacity: [0.1, 0.6, 0.1]
+            }}
+            transition={{
+              duration: 8 + (i % 6),
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: i * 0.4
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         {/* Tabs */}
         <div className="flex bg-black/40 backdrop-blur-xl p-1.5 rounded-2xl w-full sm:w-fit mx-auto mb-10 overflow-x-auto no-scrollbar border border-white/10 shadow-2xl sticky top-4 z-50">
           {[
