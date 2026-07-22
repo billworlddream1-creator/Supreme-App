@@ -79,12 +79,12 @@ export const t10Service = {
     try {
       const q = query(
         collection(db, 'weekly_engagement'),
-        where('weekId', '==', weekId),
-        orderBy('score', 'desc'),
-        limit(10)
+        where('weekId', '==', weekId)
       );
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as WeeklyEngagement));
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as WeeklyEngagement));
+      docs.sort((a, b) => (b.score || 0) - (a.score || 0));
+      return docs.slice(0, 10);
     } catch (error) {
       handleFirestoreError(error, OperationType.LIST, 'weekly_engagement');
       return [];

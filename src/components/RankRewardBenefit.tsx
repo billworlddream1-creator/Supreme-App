@@ -65,8 +65,7 @@ export default function RankRewardBenefit() {
     // Listen to reward history and active reward
     const q = query(
       collection(db, 'rank_reward_benefits'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -74,7 +73,15 @@ export default function RankRewardBenefit() {
       let active: RankReward | null = null;
       const used: string[] = [];
 
-      snapshot.forEach((doc) => {
+      const docs = [...snapshot.docs];
+      // Sort in memory by createdAt descending
+      docs.sort((a, b) => {
+        const timeA = a.data().createdAt?.toDate?.()?.getTime() || (a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0);
+        const timeB = b.data().createdAt?.toDate?.()?.getTime() || (b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+
+      docs.forEach((doc) => {
         const data = { id: doc.id, ...doc.data() } as RankReward;
         rewards.push(data);
         if (data.status === 'active') {

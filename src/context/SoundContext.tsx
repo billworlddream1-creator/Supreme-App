@@ -15,7 +15,7 @@ interface SoundContextType {
   playNewUserSignup: () => void;
   playPaymentRequest: () => void;
   playFailedLogin: () => void;
-  playSound: (type: 'success' | 'error' | 'achievement' | 'celebration' | 'notification' | 'purchase' | 'correct' | 'wrong') => void;
+  playSound: (type: 'success' | 'error' | 'achievement' | 'celebration' | 'notification' | 'purchase' | 'correct' | 'wrong' | 'click') => void;
 }
 
 const SoundContext = createContext<SoundContextType | undefined>(undefined);
@@ -82,7 +82,7 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
     if (settings.failedLogin) playSound(SOUNDS.FAILED);
   }, [settings.failedLogin, playSound]);
 
-  const playSoundEffect = useCallback((type: 'success' | 'error' | 'achievement' | 'celebration' | 'notification' | 'purchase' | 'correct' | 'wrong') => {
+  const playSoundEffect = useCallback((type: 'success' | 'error' | 'achievement' | 'celebration' | 'notification' | 'purchase' | 'correct' | 'wrong' | 'click') => {
     const urls = {
       success: 'https://cdn.jsdelivr.net/gh/claudiorodriguez/notification-sounds@master/success.mp3',
       error: 'https://cdn.jsdelivr.net/gh/claudiorodriguez/notification-sounds@master/error.mp3',
@@ -92,6 +92,7 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
       purchase: 'https://cdn.jsdelivr.net/gh/claudiorodriguez/notification-sounds@master/cash-register.mp3',
       correct: 'https://cdn.jsdelivr.net/gh/claudiorodriguez/notification-sounds@master/success.mp3',
       wrong: 'https://cdn.jsdelivr.net/gh/claudiorodriguez/notification-sounds@master/error.mp3',
+      click: 'https://cdn.jsdelivr.net/gh/claudiorodriguez/notification-sounds@master/notification.mp3',
     };
     const audio = new Audio();
     audio.crossOrigin = "anonymous";
@@ -104,6 +105,28 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
       }
     });
   }, []);
+
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      
+      const interactiveEl = target.closest('button, a, [role="button"], .celeb-profile-card, .btn');
+      if (interactiveEl) {
+        if (interactiveEl.hasAttribute('disabled')) return;
+        try {
+          playSoundEffect('click');
+        } catch (err) {
+          console.warn("Global click sound failed", err);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick, { capture: true });
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, { capture: true });
+    };
+  }, [playSoundEffect]);
 
   return (
     <SoundContext.Provider value={{ 

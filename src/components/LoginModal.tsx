@@ -13,10 +13,29 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [error, setError] = useState('');
   const { login, signup, loginWithGoogle } = useAuth();
+
+  const getFriendlyErrorMessage = (err: any): string => {
+    if (!err) return 'Authentication failed. Please try again.';
+    if (err.code === 'auth/operation-not-allowed' || (err.message && err.message.includes('auth/operation-not-allowed'))) {
+      return 'Email & Password Sign-in Provider is not enabled in your Google/Firebase Console! Please go to Firebase Console -> Authentication -> Sign-in method, then enable and save the "Email/Password" provider.';
+    }
+    if (err.code === 'auth/invalid-credential') {
+      return 'Invalid email or password. If you had an account previously, please sign up again as this is a new Firebase project.';
+    }
+    if (err.code === 'auth/user-not-found') {
+      return 'User not found. Please sign up to create a new account.';
+    }
+    if (err.code === 'auth/wrong-password') {
+      return 'Incorrect password. Please try again.';
+    }
+    return err.message || 'Authentication failed. Please try again.';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
       if (isSignUp) {
         await signup(email, password, name || email.split('@')[0], 'user');
@@ -24,17 +43,20 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
         await login(email, password);
       }
       onClose();
-    } catch (error) {
-      console.error("Auth error", error);
+    } catch (err: any) {
+      console.error("Auth error", err);
+      setError(getFriendlyErrorMessage(err));
     }
   };
 
   const handleGoogleLogin = async () => {
+    setError('');
     try {
       await loginWithGoogle();
       onClose();
-    } catch (error) {
-      console.error("Google login error", error);
+    } catch (err: any) {
+      console.error("Google login error", err);
+      setError(getFriendlyErrorMessage(err));
     }
   };
 
@@ -72,6 +94,12 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                   : 'Enter your details to access your account.'}
               </p>
             </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs font-semibold leading-relaxed">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {isSignUp && (

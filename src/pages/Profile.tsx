@@ -76,14 +76,17 @@ export default function Profile() {
       const q = query(
         collection(db, "transactions"),
         where("userId", "==", user.uid),
-        orderBy("date", "desc"),
       );
       return onSnapshot(
         q,
         (snapshot) => {
-          setTransactions(
-            snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-          );
+          const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          items.sort((a: any, b: any) => {
+            const timeA = a.date?.toDate?.()?.getTime() || (a.date ? new Date(a.date).getTime() : 0);
+            const timeB = b.date?.toDate?.()?.getTime() || (b.date ? new Date(b.date).getTime() : 0);
+            return timeB - timeA;
+          });
+          setTransactions(items);
         },
         (error) => {
           console.error("Error in transactions listener:", error);
@@ -98,14 +101,17 @@ export default function Profile() {
       const q = query(
         collection(db, "posts"),
         where("authorUid", "==", user.uid),
-        orderBy("createdAt", "desc"),
       );
       return onSnapshot(
         q,
         (snapshot) => {
-          setUserPosts(
-            snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-          );
+          const items = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+          items.sort((a: any, b: any) => {
+            const timeA = a.createdAt?.toDate?.()?.getTime() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+            const timeB = b.createdAt?.toDate?.()?.getTime() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+            return timeB - timeA;
+          });
+          setUserPosts(items);
           setIsPostsLoading(false);
         },
         (error) => {

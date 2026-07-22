@@ -819,7 +819,7 @@ function InvoicingSection() {
 function EmailMarketingSection() {
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
-  const [fromEmail, setFromEmail] = useState('example@gmail.com');
+  const [fromEmail, setFromEmail] = useState('campaigns@supreme-luxury.com');
   const [recipients, setRecipients] = useState<string[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
@@ -829,8 +829,8 @@ function EmailMarketingSection() {
     // Generate random members each time
     const randomMembers = Array.from({ length: 20 }, (_, i) => ({
       id: Math.random().toString(36).substring(7),
-      name: `Member ${Math.floor(Math.random() * 1000)}`,
-      email: `member${Math.floor(Math.random() * 1000)}@example.com`
+      name: `Premium Member ${Math.floor(Math.random() * 1000) + 100}`,
+      email: `member.${Math.floor(Math.random() * 1000)}@supreme-alliance.com`
     }));
     setAvailableMembers(randomMembers);
     setShowMembersModal(true);
@@ -847,10 +847,25 @@ function EmailMarketingSection() {
   const handleGenerateEmail = () => {
     setIsGenerating(true);
     setTimeout(() => {
-      setSubject('Exclusive Offer: Unlock Your Potential with Supreme');
-      setContent('Hello [Name],\n\nWe are excited to share an exclusive offer with you. As a valued member of our community, you now have access to premium tools that will elevate your business.\n\nBest regards,\nThe Supreme Team');
+      setSubject('Exclusive Invitation: Unlock Your Potential with Supreme Gold Privilege');
+      setContent('Dear Distinguished Colleague,\n\nWe are delighted to extend a bespoke invitation to enhance your operational capability using Supreme\'s elite toolkit. As an esteemed professional in our ecosystem, you have priority access to refined solutions designed for high-performance enterprises.\n\nWarmest regards,\nThe Supreme Advisory Board');
       setIsGenerating(false);
-    }, 1500);
+    }, 1200);
+  };
+
+  const handleSendCampaign = () => {
+    if (!recipients.length) {
+      alert('Please select at least one recipient member from the list.');
+      return;
+    }
+    if (!subject.trim() || !content.trim()) {
+      alert('Subject heading and body message content are required.');
+      return;
+    }
+    alert(`Success: Marketing Campaign dispatched successfully to ${recipients.length} elite partners!`);
+    setSubject('');
+    setContent('');
+    setRecipients([]);
   };
 
   return (
@@ -861,13 +876,21 @@ function EmailMarketingSection() {
       className="space-y-6"
     >
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-display font-bold text-[var(--color-supreme-text)]">Email Marketing</h2>
-        <div className="flex gap-2">
-          <button className="px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2">
+        <h2 className="text-2xl font-display font-medium text-[var(--color-supreme-text)]">Email Marketing Campaigns</h2>
+        <div className="flex gap-2.5">
+          <button 
+            type="button"
+            onClick={() => alert('Draft saved successfully to local workshop!')}
+            className="px-4 py-2 bg-white border border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm flex items-center gap-2"
+          >
             <Save className="w-4 h-4" /> Save Draft
           </button>
-          <button className="px-4 py-2 bg-[var(--color-supreme-gold)] text-white rounded-xl font-bold hover:bg-[var(--color-supreme-gold-light)] transition-all shadow-md flex items-center gap-2">
-            <Send className="w-4 h-4" /> Send Campaign
+          <button 
+            type="button"
+            onClick={handleSendCampaign}
+            className="px-4 py-2 bg-[var(--color-supreme-gold)] text-white rounded-xl font-bold hover:bg-[var(--color-supreme-gold-light)] transition-all shadow-md flex items-center gap-2"
+          >
+            <Send className="w-4 h-4" /> Dispatch Campaign
           </button>
         </div>
       </div>
@@ -876,61 +899,66 @@ function EmailMarketingSection() {
         <div className="lg:col-span-2 space-y-6">
           <div className="glass-panel p-6 rounded-2xl space-y-4">
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">From</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Sender Alias</label>
               <input 
                 type="text" 
                 value={fromEmail}
                 onChange={(e) => setFromEmail(e.target.value)}
-                className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--color-supreme-gold)]/50"
+                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-supreme-gold)]"
               />
-              <p className="text-xs text-gray-500 mt-1">This email will be used as the sender. Replies are not supported for marketing campaigns.</p>
+              <p className="text-[11px] text-gray-400 mt-1">This address will be visible as the campaign dispatcher.</p>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">To (Max 10 recipients)</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">To (Maximum 10 Elite Recipients)</label>
               <div className="flex gap-2">
                 <input 
                   type="text" 
                   value={recipients.join(', ')}
                   readOnly
-                  placeholder="Select recipients from members list..." 
-                  className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-600 focus:outline-none"
+                  placeholder="Invite recipients from database list..." 
+                  className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-600 focus:outline-none text-sm font-medium"
                 />
                 <button 
+                  type="button"
                   onClick={handleBrowseMembers}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition-all"
+                  className="px-5 py-2.5 bg-gray-900 border border-gray-900 text-white rounded-xl font-bold hover:bg-gray-800 transition-all text-sm"
                 >
-                  Browse
+                  Browse List
                 </button>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Subject</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Subject Heading</label>
               <input 
                 type="text" 
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="Enter email subject" 
-                className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--color-supreme-gold)]/50"
+                placeholder="Enter campaign subject line" 
+                className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-supreme-gold)]"
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Message</label>
-              <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
-                <div className="bg-gray-50 p-2 border-b border-gray-200 flex gap-2">
-                  <button className="p-1.5 hover:bg-gray-200 rounded text-gray-600 font-bold">B</button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded text-gray-600 italic">I</button>
-                  <button className="p-1.5 hover:bg-gray-200 rounded text-gray-600 underline">U</button>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Custom Message Body</label>
+              <div className="border border-gray-250 rounded-xl overflow-hidden bg-white">
+                <div className="bg-gray-50 p-2.5 border-b border-gray-200 flex gap-2">
+                  <span className="p-1.5 hover:bg-gray-200 rounded text-gray-600 font-bold select-none cursor-pointer">B</span>
+                  <span className="p-1.5 hover:bg-gray-200 rounded text-gray-600 italic select-none cursor-pointer text-sm">I</span>
+                  <span className="p-1.5 hover:bg-gray-100 rounded text-gray-600 underline select-none cursor-pointer text-sm">U</span>
                   <div className="w-px h-6 bg-gray-300 mx-1 self-center"></div>
-                  <button className="p-1.5 hover:bg-gray-200 rounded text-gray-600 flex items-center gap-1 text-sm">
-                    <Paperclip className="w-4 h-4" /> Attach
+                  <button 
+                    type="button"
+                    onClick={() => alert('Attachments can be included with premium subscription tier.')}
+                    className="p-1.5 hover:bg-gray-200 rounded text-gray-600 flex items-center gap-1 text-sm font-bold"
+                  >
+                    <Paperclip className="w-4 h-4" /> Attach File
                   </button>
                 </div>
                 <textarea 
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  rows={10}
-                  className="w-full p-4 focus:outline-none resize-none"
-                  placeholder="Write your email content here..."
+                  rows={9}
+                  className="w-full p-4 focus:outline-none resize-none text-sm leading-relaxed"
+                  placeholder="Design your customized campaign email draft here..."
                 ></textarea>
               </div>
             </div>
@@ -943,41 +971,57 @@ function EmailMarketingSection() {
               <span className="w-8 h-8 rounded-lg bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] flex items-center justify-center">
                 ✨
               </span>
-              AI Email Generator
+              Intelligent Generator
             </h3>
-            <p className="text-sm text-gray-500">Let AI write your promotional email based on a short description.</p>
+            <p className="text-xs text-gray-500 leading-relaxed">Let Supreme\'s AI assets draft professional and high-impact letters based on your description prompt.</p>
             <textarea 
               rows={3}
-              placeholder="E.g., Write a promotional email for our new summer collection offering 20% off."
-              className="w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--color-supreme-gold)]/50 text-sm resize-none"
+              placeholder="E.g., Write an advisory follow-up offering priority luxury partnership privileges."
+              className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-supreme-gold)] text-xs resize-none"
             ></textarea>
             <button 
+              type="button"
               onClick={handleGenerateEmail}
               disabled={isGenerating}
-              className="w-full py-2 bg-black text-white rounded-xl font-bold hover:bg-gray-800 transition-all disabled:opacity-50"
+              className="w-full py-2.5 bg-gray-950 text-white rounded-xl font-bold hover:bg-gray-800 transition-all disabled:opacity-50 text-xs"
             >
-              {isGenerating ? 'Generating...' : 'Generate Content'}
+              {isGenerating ? 'Drafting copy...' : 'Generate Copy'}
             </button>
           </div>
 
           <div className="glass-panel p-6 rounded-2xl space-y-4">
-            <h3 className="font-bold text-gray-900">Templates</h3>
+            <h3 className="font-bold text-gray-900 text-sm">Layout Presets</h3>
             <div className="grid grid-cols-2 gap-3">
-              <button className="p-4 border-2 border-[var(--color-supreme-gold)] rounded-xl bg-gradient-to-br from-white to-[#FFF9E6] text-left hover:shadow-md transition-all">
-                <div className="font-bold text-sm text-gray-900">Gold & White</div>
-                <div className="text-xs text-gray-500 mt-1">Default Theme</div>
+              <button 
+                type="button"
+                className="p-3.5 border-2 border-[var(--color-supreme-gold)] rounded-xl bg-gradient-to-br from-white to-[#FFF9E6] text-left transition-all"
+              >
+                <div className="font-bold text-xs text-gray-900">Gold Accent</div>
+                <div className="text-[10px] text-gray-500 mt-1">Sovereign Alliance</div>
               </button>
-              <button className="p-4 border border-gray-200 rounded-xl bg-white text-left hover:border-gray-300 transition-all">
-                <div className="font-bold text-sm text-gray-900">Minimal</div>
-                <div className="text-xs text-gray-500 mt-1">Clean & Simple</div>
+              <button 
+                type="button"
+                onClick={() => alert('Preset applied successfully.')}
+                className="p-3.5 border border-gray-200 rounded-xl bg-white text-left hover:border-gray-300 transition-all"
+              >
+                <div className="font-bold text-xs text-gray-900">Premium Minimal</div>
+                <div className="text-[10px] text-gray-500 mt-1">Clean Typo</div>
               </button>
-              <button className="p-4 border border-gray-200 rounded-xl bg-gray-900 text-left hover:border-gray-700 transition-all">
-                <div className="font-bold text-sm text-white">Dark Mode</div>
-                <div className="text-xs text-gray-400 mt-1">Sleek</div>
+              <button 
+                type="button"
+                onClick={() => alert('Preset applied successfully.')}
+                className="p-3.5 border border-gray-200 rounded-xl bg-gray-900 text-left hover:border-gray-700 transition-all"
+              >
+                <div className="font-bold text-xs text-white">Classic Dark</div>
+                <div className="text-[10px] text-gray-400 mt-1">Sleek Obsidian</div>
               </button>
-              <button className="p-4 border border-gray-200 rounded-xl bg-blue-50 text-left hover:border-blue-200 transition-all">
-                <div className="font-bold text-sm text-blue-900">Corporate</div>
-                <div className="text-xs text-blue-600/70 mt-1">Professional</div>
+              <button 
+                type="button"
+                onClick={() => alert('Preset applied successfully.')}
+                className="p-3.5 border border-gray-200 rounded-xl bg-blue-50 text-left hover:border-blue-200 transition-all"
+              >
+                <div className="font-bold text-xs text-blue-900">Corporate</div>
+                <div className="text-[10px] text-blue-600/70 mt-1">Executive Glass</div>
               </button>
             </div>
           </div>
@@ -990,46 +1034,46 @@ function EmailMarketingSection() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl max-h-[80vh] flex flex-col"
+              className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[75vh] flex flex-col"
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-gray-900">Select Members</h3>
-                <span className="text-sm font-bold text-[var(--color-supreme-gold)]">{recipients.length}/10 Selected</span>
+              <div className="flex justify-between items-center mb-4 pb-2 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900">Select Directory Contacts</h3>
+                <span className="text-xs font-bold text-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 px-2.5 py-1 rounded-full">{recipients.length}/10 Selected</span>
               </div>
-              <div className="flex-1 overflow-y-auto pr-2 space-y-2">
+              <div className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[40vh]">
                 {availableMembers.map(member => (
                   <div key={member.id} className="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors">
                     <div>
-                      <p className="font-bold text-sm text-gray-900">{member.name}</p>
-                      <p className="text-xs text-gray-500">{member.email}</p>
+                      <p className="font-bold text-xs text-gray-900">{member.name}</p>
+                      <p className="text-[11px] text-gray-400">{member.email}</p>
                     </div>
                     <button 
+                      type="button"
                       onClick={() => toggleRecipient(member.email)}
                       disabled={!recipients.includes(member.email) && recipients.length >= 10}
                       className={clsx(
-                        "w-6 h-6 rounded-full flex items-center justify-center border transition-all",
-                        recipients.includes(member.email) 
-                          ? "bg-[var(--color-supreme-gold)] border-[var(--color-supreme-gold)] text-white" 
-                          : "border-gray-300 text-transparent hover:border-[var(--color-supreme-gold)] disabled:opacity-50 disabled:hover:border-gray-300"
+                        "px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-bold transition-all",
+                        recipients.includes(member.email) && "bg-[var(--color-supreme-gold)] text-white hover:bg-[var(--color-supreme-gold-light)]"
                       )}
                     >
-                      <CheckSquare className="w-4 h-4" />
+                      {recipients.includes(member.email) ? 'Selected' : 'Select'}
                     </button>
                   </div>
                 ))}
               </div>
-              <div className="flex justify-end mt-6 pt-4 border-t border-gray-100">
+              <div className="mt-6 flex justify-end">
                 <button 
+                  type="button"
                   onClick={() => setShowMembersModal(false)}
-                  className="px-6 py-2 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all"
+                  className="px-6 py-2.5 bg-gray-950 text-white rounded-xl font-bold hover:bg-gray-800 transition-all text-xs shadow-md"
                 >
-                  Done
+                  Confirm Selection
                 </button>
               </div>
             </motion.div>

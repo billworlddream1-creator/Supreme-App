@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { io } from 'socket.io-client';
 import { generateContent } from '../services/aiService';
+import GlobalRankings from '../components/GlobalRankings';
 
 const LANGUAGES = [
   'English', 'Spanish', 'French', 'German', 'Chinese', 'Japanese', 
@@ -646,40 +647,9 @@ export default function SupremeHallOfFame() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
+              className="bg-black/40 backdrop-blur-md rounded-3rem p-6 sm:p-8 border border-white/10 overflow-hidden shadow-2xl"
             >
-              <div className="p-6 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">Platform Highest Earners</h2>
-                <div className="flex gap-2">
-                  <button className="p-2 text-gray-400 hover:text-gray-600 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <Filter className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="divide-y divide-gray-100">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="p-4 sm:p-6 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-                    <div className={clsx(
-                      "w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shrink-0",
-                      i === 1 ? "bg-yellow-100 text-yellow-600" :
-                      i === 2 ? "bg-gray-200 text-gray-600" :
-                      i === 3 ? "bg-amber-100 text-amber-700" :
-                      "bg-gray-50 text-gray-400"
-                    )}>
-                      #{i}
-                    </div>
-                    <img src={`https://picsum.photos/seed/${i + 10}/150`} alt="Earner" className="w-12 h-12 rounded-full object-cover" />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-gray-900 truncate">Top Earner {i}</h4>
-                      <p className="text-sm text-gray-500 truncate">Content Creator & Streamer</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-green-600">${(100000 / i).toLocaleString()}</div>
-                      <div className="text-xs text-gray-400">Total Earnings</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <GlobalRankings />
             </motion.div>
           )}
 

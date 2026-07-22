@@ -31,12 +31,20 @@ export default function OrderTracking() {
 
     const q = query(
       collection(db, 'orders'),
-      where('buyerUid', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('buyerUid', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Order[];
+      // Sort in memory by createdAt descending
+      ordersData.sort((a, b) => {
+        const getTimestamp = (val: any) => {
+          if (!val) return 0;
+          if (typeof val.toDate === 'function') return val.toDate().getTime();
+          return new Date(val).getTime();
+        };
+        return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
+      });
       setOrders(ordersData);
       setLoading(false);
 

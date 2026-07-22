@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useSubscription, PLANS, PlanType } from '../context/SubscriptionContext';
+import { useSubscription, PlanType } from '../context/SubscriptionContext';
 import { useAuth } from '../context/AuthContext';
 import { Check, Crown, Bot, Play, ShoppingBag, Sparkles, AlertCircle, Pickaxe } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -42,11 +42,13 @@ export default function Pricing() {
     }
   }, [location.state]);
 
-  const groupedPlans = PLANS.reduce((acc, plan) => {
+  const activePlans = allPlans.filter(plan => !plan.isPaused);
+
+  const groupedPlans = activePlans.reduce((acc, plan) => {
     if (!acc[plan.type]) acc[plan.type] = [];
     acc[plan.type].push(plan);
     return acc;
-  }, {} as Record<PlanType, typeof PLANS>);
+  }, {} as Record<PlanType, typeof allPlans>);
 
   const handleSubscribe = (planId: string) => {
     if (!user) {

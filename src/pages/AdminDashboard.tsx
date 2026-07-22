@@ -49,6 +49,7 @@ import {
   UserCheck,
   UserPlus,
   Wallet,
+  Bitcoin,
   Gift,
   Menu,
   X,
@@ -69,7 +70,9 @@ import {
   Briefcase,
   Building2,
   Terminal,
-  Wifi
+  Wifi,
+  Flame,
+  ClipboardList
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -93,7 +96,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useFeatureControl, FeatureId } from '../context/FeatureControlContext';
 import { SUPREME_FEATURES, SupremeFeature } from '../constants/featureIds';
-import { Timestamp, query, collection, where, orderBy, onSnapshot, doc, updateDoc, getDoc, getDocs } from 'firebase/firestore';
+import { Timestamp, query, collection, where, orderBy, onSnapshot, doc, updateDoc, getDoc, getDocs, addDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import AdminMiningManager from '../components/AdminMiningManager';
 import AdminRewards from '../components/AdminRewards';
@@ -105,6 +108,12 @@ import AdminAppealAnalytics from '../components/AdminAppealAnalytics';
 import AdminTreasureTracker from '../components/AdminTreasureTracker';
 import ConnectivityMonitor from '../components/ConnectivityMonitor';
 import SupremeCMD from '../components/SupremeCMD';
+import AdminStreakTracker from '../components/AdminStreakTracker';
+import DashboardStats from '../components/DashboardStats';
+import AdminSubscriptionManager from '../components/AdminSubscriptionManager';
+import AdminAuditLogs from '../components/AdminAuditLogs';
+import StreakAnalysisArea from '../components/StreakAnalysisArea';
+import UserGrowthAnalytics from '../components/UserGrowthAnalytics';
 
 interface AnalyticsData {
   daily: number[];
@@ -238,13 +247,16 @@ function FeatureControlAdmin() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [lockReason, setLockReason] = useState('Policy Violation');
 
+  // Derive current user state from siteUsers to ensure real-time synchronization
+  const currentUser = selectedUser ? (siteUsers || []).find(u => u.id === selectedUser.id) || selectedUser : null;
+
   const handleToggleFeature = async (featureId: string, currentStatus: any) => {
-    if (!selectedUser) return;
+    if (!currentUser) return;
     setIsUpdating(true);
     
     try {
-      const userRef = doc(db, 'users', selectedUser.id);
-      const lockedFeatures = selectedUser.lockedFeatures || {};
+      const userRef = doc(db, 'users', currentUser.id);
+      const lockedFeatures = currentUser.lockedFeatures || {};
       
       if (lockedFeatures[featureId] && lockedFeatures[featureId].status === 'locked') {
         // Unlock
@@ -263,9 +275,7 @@ function FeatureControlAdmin() {
       }
 
       await updateDoc(userRef, { lockedFeatures });
-      // Update local state for immediate feedback
-      setSelectedUser({ ...selectedUser, lockedFeatures });
-      toast.success(`Feature ${featureId} status updated for ${selectedUser.name}`);
+      toast.success(`Feature ${featureId} status updated for ${currentUser.name}`);
     } catch (error) {
       console.error('Error updating feature status:', error);
       toast.error('Failed to update feature status');
@@ -298,24 +308,24 @@ function FeatureControlAdmin() {
           </div>
 
           <div className="space-y-2 max-h-[500px] overflow-y-auto no-scrollbar">
-            {siteUsers
-              .filter(u => u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase()))
+            {(siteUsers || [])
+              .filter(u => (u.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || (u.email || '').toLowerCase().includes((searchQuery || '').toLowerCase()))
               .map(user => (
               <button
                 key={user.id}
                 onClick={() => setSelectedUser(user)}
                 className={`w-full p-4 rounded-2xl border transition-all flex items-center gap-3 text-left ${
-                  selectedUser?.id === user.id 
+                  currentUser?.id === user.id 
                     ? 'bg-[var(--color-supreme-gold)]/10 border-[var(--color-supreme-gold)]/50 text-[var(--color-supreme-gold)]' 
                     : 'bg-white/5 border-white/5 text-gray-400 hover:border-white/10 hover:bg-white/10'
                 }`}
               >
-                <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center font-bold">
-                  {user.name[0]}
+                <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center font-bold text-white">
+                  {(user.name || 'U')[0] || 'U'}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold truncate">{user.name}</p>
-                  <p className="text-[10px] opacity-60 truncate">{user.email}</p>
+                  <p className="font-bold truncate text-white">{user.name || 'Anonymous'}</p>
+                  <p className="text-[10px] opacity-60 truncate text-gray-400">{user.email || 'No Email'}</p>
                 </div>
               </button>
             ))}
@@ -324,19 +334,19 @@ function FeatureControlAdmin() {
 
         {/* Feature Management */}
         <div className="lg:col-span-2 space-y-6">
-          {selectedUser ? (
+          {currentUser ? (
             <>
               <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2rem] border border-white/10 flex justify-between items-center">
                 <div className="flex items-center gap-4">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center text-2xl font-bold text-black border-4 border-white/10 shadow-xl">
-                    {selectedUser.name[0]}
+                    {(currentUser.name || 'U')[0] || 'U'}
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold text-white">{selectedUser.name}</h4>
-                    <p className="text-xs text-gray-500">{selectedUser.email}</p>
+                    <h4 className="text-xl font-bold text-white">{currentUser.name || 'Anonymous'}</h4>
+                    <p className="text-xs text-gray-500">{currentUser.email || 'No Email'}</p>
                     <div className="mt-2 flex items-center gap-2">
                        <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-widest border border-blue-500/20">
-                         {selectedUser.role}
+                         {currentUser.role || 'user'}
                        </span>
                     </div>
                   </div>
@@ -344,7 +354,7 @@ function FeatureControlAdmin() {
                 <div className="text-right">
                   <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Locked Features</p>
                   <p className="text-2xl font-display font-bold text-red-500">
-                    {Object.values(selectedUser.lockedFeatures || {}).filter((f: any) => f.status === 'locked').length}
+                    {Object.values(currentUser.lockedFeatures || {}).filter((f: any) => f.status === 'locked').length}
                   </p>
                 </div>
               </div>
@@ -368,7 +378,7 @@ function FeatureControlAdmin() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {SUPREME_FEATURES.map(feature => {
-                    const lockData = selectedUser.lockedFeatures?.[feature.id];
+                    const lockData = currentUser.lockedFeatures?.[feature.id];
                     const isLocked = lockData?.status === 'locked';
 
                     return (
@@ -970,8 +980,8 @@ function RewardMechanismAdmin() {
   const supremeRanks = ['Silver', 'Gold', 'Diamond', 'Crowned', 'Elite', 'silver', 'gold', 'diamond', 'crowned', 'elite'];
   
   const filteredUsers = siteUsers.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         user.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (user.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || 
+                         (user.email || '').toLowerCase().includes((searchQuery || '').toLowerCase());
     const userRank = user.rank || '';
     const matchesRank = selectedRank === 'all' || userRank.toLowerCase() === selectedRank.toLowerCase();
     const isSupremeRank = supremeRanks.some(r => r.toLowerCase() === userRank.toLowerCase());
@@ -1372,9 +1382,15 @@ function SupremeMarketAdmin() {
       setDealers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    const qProducts = query(collection(db, 'products'), where('status', 'in', ['pending', 'queued', 'active']), orderBy('createdAt', 'desc'));
+    const qProducts = query(collection(db, 'products'), where('status', 'in', ['pending', 'queued', 'active']));
     const unsubscribeProducts = onSnapshot(qProducts, (snapshot) => {
-      setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      items.sort((a, b) => {
+        const timeA = a.createdAt?.toDate?.()?.getTime() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.toDate?.()?.getTime() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+      setProducts(items);
     });
 
     const qOrders = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
@@ -1389,6 +1405,108 @@ function SupremeMarketAdmin() {
       unsubscribeOrders();
     };
   }, []);
+
+  // --- Admin God Eye Monitor Analytics ---
+  const godEyeStats = React.useMemo(() => {
+    if (orders.length === 0) return { bestSellingProduct: 'N/A', bestSellingDealer: 'N/A', dailySales: [] };
+
+    // 1. Calculate Best Seller Product
+    const productCounts: Record<string, { count: number; revenue: number }> = {};
+    orders.forEach(order => {
+      const name = order.productName || 'Unknown Product';
+      const amount = order.amount || 0;
+      if (!productCounts[name]) {
+        productCounts[name] = { count: 0, revenue: 0 };
+      }
+      productCounts[name].count += 1;
+      productCounts[name].revenue += amount;
+    });
+
+    let topProduct = 'N/A';
+    let maxProductCount = 0;
+    Object.entries(productCounts).forEach(([name, data]) => {
+      if (data.count > maxProductCount) {
+        maxProductCount = data.count;
+        topProduct = name;
+      }
+    });
+
+    // 2. Calculate Best Seller Dealer (by transaction count)
+    const dealerCounts: Record<string, { count: number; revenue: number }> = {};
+    orders.forEach(order => {
+      const dealer = order.dealerUid || 'Unknown Dealer';
+      const amount = order.amount || 0;
+      if (!dealerCounts[dealer]) {
+        dealerCounts[dealer] = { count: 0, revenue: 0 };
+      }
+      dealerCounts[dealer].count += 1;
+      dealerCounts[dealer].revenue += amount;
+    });
+
+    let topDealer = 'N/A';
+    let maxDealerCount = 0;
+    Object.entries(dealerCounts).forEach(([dealer, data]) => {
+      if (data.count > maxDealerCount) {
+        maxDealerCount = data.count;
+        topDealer = dealer;
+      }
+    });
+
+    // 3. Calculate Number of Goods Sold Daily and By Whom
+    const dailyGroup: Record<string, { 
+      date: string; 
+      count: number; 
+      totalRevenue: number;
+      sales: { product: string; buyer: string; dealer: string; amount: number; time: string }[] 
+    }> = {};
+
+    orders.forEach(order => {
+      let dateStr = 'Unknown';
+      let dateObj: Date | null = null;
+      if (order.createdAt) {
+        if (order.createdAt.toDate) {
+          dateObj = order.createdAt.toDate();
+        } else if (order.createdAt.seconds) {
+          dateObj = new Date(order.createdAt.seconds * 1000);
+        } else {
+          dateObj = new Date(order.createdAt);
+        }
+      }
+      if (dateObj) {
+        dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+
+      if (!dailyGroup[dateStr]) {
+        dailyGroup[dateStr] = {
+          date: dateStr,
+          count: 0,
+          totalRevenue: 0,
+          sales: []
+        };
+      }
+
+      dailyGroup[dateStr].count += 1;
+      dailyGroup[dateStr].totalRevenue += order.amount || 0;
+      dailyGroup[dateStr].sales.push({
+        product: order.productName || 'Unknown Product',
+        buyer: order.buyerUid || 'Anonymous Buyer',
+        dealer: order.dealerUid || 'Anonymous Dealer',
+        amount: order.amount || 0,
+        time: dateObj ? dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown'
+      });
+    });
+
+    // Sort dates descending
+    const sortedDaily = Object.values(dailyGroup).sort((a, b) => {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+
+    return {
+      bestSellingProduct: topProduct !== 'N/A' ? `${topProduct} (${maxProductCount} sold)` : 'N/A',
+      bestSellingDealer: topDealer !== 'N/A' ? `Dealer: ${topDealer.substring(0, 8)}... (${maxDealerCount} sold)` : 'N/A',
+      dailySales: sortedDaily
+    };
+  }, [orders]);
 
   const handleApproveDealer = async (dealer: any) => {
     try {
@@ -1440,6 +1558,103 @@ function SupremeMarketAdmin() {
 
   return (
     <div className="space-y-12 pb-20">
+      {/* GOD EYE Monitor Section */}
+      <section className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h3 className="text-2xl font-black text-white flex items-center gap-3 tracking-wide">
+              <Eye className="w-7 h-7 text-yellow-500 animate-pulse" />
+              GOD EYE MONITORING SYSTEM
+            </h3>
+            <p className="text-gray-400">Real-time marketplace telemetry, volume tracking, and seller auditing.</p>
+          </div>
+          <span className="px-3 py-1 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-bold uppercase tracking-widest rounded-full animate-pulse">
+            ● GLOBAL AUDIT LIVE
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-6 bg-white/5 rounded-3xl border border-white/10 hover:border-yellow-500/20 transition-all flex flex-col justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Top Selling Product</p>
+              <h4 className="text-xl font-bold text-white leading-tight">{godEyeStats.bestSellingProduct}</h4>
+            </div>
+            <div className="mt-4 text-xs text-yellow-500/70 font-semibold flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4" /> Most requested in market
+            </div>
+          </div>
+
+          <div className="p-6 bg-white/5 rounded-3xl border border-white/10 hover:border-yellow-500/20 transition-all flex flex-col justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Top Market Dealer</p>
+              <h4 className="text-xl font-bold text-white leading-tight">{godEyeStats.bestSellingDealer}</h4>
+            </div>
+            <div className="mt-4 text-xs text-yellow-500/70 font-semibold flex items-center gap-1.5">
+              <Award className="w-4 h-4" /> Top transaction throughput
+            </div>
+          </div>
+
+          <div className="p-6 bg-white/5 rounded-3xl border border-white/10 hover:border-yellow-500/20 transition-all flex flex-col justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Total Items Transacted</p>
+              <h4 className="text-3xl font-display font-black text-[var(--color-supreme-gold)]">{orders.length}</h4>
+            </div>
+            <div className="mt-4 text-xs text-gray-500 font-semibold flex items-center gap-1.5">
+              <Activity className="w-4 h-4" /> Cumulative order count
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Sales Breakdown & 'Who' Detail */}
+        <div className="bg-white/5 backdrop-blur-xl rounded-[2.5rem] border border-white/10 overflow-hidden">
+          <div className="p-8 border-b border-white/5 flex justify-between items-center">
+            <h4 className="text-lg font-bold text-white flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-[var(--color-supreme-gold)]" />
+              Daily Sales Audit (Numbers Sold Daily & By Who)
+            </h4>
+          </div>
+          <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto no-scrollbar">
+            {godEyeStats.dailySales.map((day, idx) => (
+              <div key={idx} className="p-6 hover:bg-white/5 transition-all space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-white text-sm bg-white/5 px-4 py-1.5 rounded-full border border-white/10">
+                    {day.date}
+                  </span>
+                  <div className="text-right">
+                    <span className="text-xs text-gray-400 uppercase font-black tracking-widest mr-4">Goods Sold: {day.count}</span>
+                    <span className="text-sm font-bold text-[var(--color-supreme-gold)]">${day.totalRevenue.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Sub-table listing 'Who' (Buyer & Seller) for each product */}
+                <div className="pl-4 border-l-2 border-yellow-500/20 space-y-3">
+                  {day.sales.map((sale, sIdx) => (
+                    <div key={sIdx} className="flex flex-col sm:flex-row justify-between sm:items-center text-xs gap-2 py-1">
+                      <div className="space-y-1">
+                        <p className="text-white font-bold">{sale.product}</p>
+                        <p className="text-gray-400 font-medium">
+                          Buyer: <span className="text-purple-300 font-mono">{sale.buyer.substring(0, 10)}...</span> • 
+                          Dealer: <span className="text-cyan-300 font-mono">{sale.dealer.substring(0, 10)}...</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-gray-500">{sale.time}</span>
+                        <span className="font-bold text-emerald-500">${sale.amount}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {godEyeStats.dailySales.length === 0 && (
+              <div className="p-12 text-center text-gray-500">
+                No orders recorded yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Dealer Profiles Section */}
       <section className="space-y-6">
         <div>
@@ -1765,6 +1980,84 @@ export default function AdminDashboard() {
   const [actionReason, setActionReason] = useState('');
   const [showAddAdminModal, setShowAddAdminModal] = useState(false);
   const [newAdminData, setNewAdminData] = useState({ name: '', email: '', category: 'general' as MiniAdminCategory, adminId: '' });
+  const [localSystemSettings, setLocalSystemSettings] = useState<PlatformSettings | null>(null);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // States for Unified Payment Tracking
+  const [allUserTransactions, setAllUserTransactions] = useState<any[]>([]);
+  const [allAdminTransactions, setAllAdminTransactions] = useState<any[]>([]);
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState<string>('');
+  const [showManualTxModal, setShowManualTxModal] = useState(false);
+  const [manualTxData, setManualTxData] = useState({
+    userId: '',
+    amount: '',
+    method: 'stripe',
+    type: 'deposit',
+    notes: ''
+  });
+  const [isRecordingTx, setIsRecordingTx] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      setLocalSystemSettings(settings);
+    }
+  }, [settings]);
+
+  // Unified Payment Tracking Effect
+  useEffect(() => {
+    if (!user) return;
+    try {
+      // 1. User Transactions
+      const qUserTx = collection(db, 'transactions');
+      const unsubUserTx = onSnapshot(qUserTx, (snapshot) => {
+        const txs = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            origin: 'user',
+            // Map payment method based on description/category/method
+            derivedMethod: (() => {
+              const desc = (data.description || '').toLowerCase();
+              const cat = (data.category || '').toLowerCase();
+              if (desc.includes('stripe') || cat.includes('stripe')) return 'stripe';
+              if (desc.includes('paypal') || cat.includes('paypal')) return 'paypal';
+              if (desc.includes('bitcoin') || desc.includes('btc') || cat.includes('bitcoin') || cat.includes('crypto')) return 'bitcoin';
+              return 'internal';
+            })()
+          };
+        });
+        setAllUserTransactions(txs);
+      }, (err) => {
+        console.error("User transactions listen error:", err);
+      });
+
+      // 2. Admin Transactions
+      const qAdminTx = collection(db, 'admin_transactions');
+      const unsubAdminTx = onSnapshot(qAdminTx, (snapshot) => {
+        const txs = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            origin: 'admin',
+            derivedMethod: data.method || 'internal'
+          };
+        });
+        setAllAdminTransactions(txs);
+      }, (err) => {
+        console.error("Admin transactions listen error:", err);
+      });
+
+      return () => {
+        unsubUserTx();
+        unsubAdminTx();
+      };
+    } catch (e) {
+      console.error("Firestore loading error:", e);
+    }
+  }, [user]);
 
   // Admin Guard
   const isMasterAdmin = user?.email === 'billworlddream1@gmail.com' || user?.email === 'supremeseller@gmail.com' || user?.email === 'sunny@gmail.com';
@@ -1965,14 +2258,16 @@ export default function AdminDashboard() {
     { id: 'mining_management', label: 'Mining Management', icon: Pickaxe },
     { id: 'admin_management', label: 'Admin Management', icon: UserCheck },
     { id: 'security', label: 'Security & Logs', icon: Shield },
+    { id: 'audit_logs', label: 'Admin Audit Logs', icon: ClipboardList },
     { id: 'chat', label: 'Admin Chat', icon: MessageSquare },
     { id: 'settings', label: 'System Settings', icon: Settings },
     { id: 'feature_control', label: 'Features Control Center', icon: ShieldAlert },
     { id: 'bet_tracking', label: 'Bet Tracking', icon: Trophy },
-    { id: 'promote_tracking', label: 'Promote Tracking', icon: Megaphone },
+    { id: 'promote_tracking', label: 'Feature Promote', icon: Megaphone },
     { id: 'email_center', label: 'Email Center', icon: Mail },
     { id: 'reward_mechanism', label: 'Reward Mechanism', icon: Award },
     { id: 'noble_tracking', label: 'Noble Tracking', icon: Crown },
+    { id: 'streak_tracking', label: 'Streak Tracking', icon: Flame },
     { id: 'appeal_analytics', label: 'Appeal Analytics', icon: Zap },
     { id: 'treasure_tracking', label: 'Treasure Tracking', icon: Briefcase },
     { id: 'connectivity_tracking', label: 'Connectivity Tracking', icon: Wifi },
@@ -1991,6 +2286,8 @@ export default function AdminDashboard() {
         return <RewardMechanismAdmin />;
       case 'noble_tracking':
         return <AdminNobleTracker />;
+      case 'streak_tracking':
+        return <AdminStreakTracker />;
       case 'promote_tracking':
         return <PromoteTrackingAdmin />;
       case 'appeal_analytics':
@@ -2134,6 +2431,15 @@ export default function AdminDashboard() {
                 </div>
               </motion.div>
             </div>
+
+            {/* Interactive User Growth Analytics Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <UserGrowthAnalytics />
+            </motion.div>
 
             {/* Recent Activity Table */}
             <motion.div 
@@ -2293,151 +2599,565 @@ export default function AdminDashboard() {
             )}
           </div>
         );
-      case 'financial':
+      case 'financial': {
+        // Prepare Unified Transaction List
+        const unifiedTransactions = (() => {
+          const list: any[] = [];
+          
+          allUserTransactions.forEach(tx => {
+            list.push({
+              id: tx.id,
+              userId: tx.userId || 'N/A',
+              type: tx.type || 'unknown',
+              amount: tx.amount || 0,
+              description: tx.description || 'General transaction',
+              category: tx.category || 'General',
+              status: tx.status || 'completed',
+              date: tx.date,
+              method: tx.derivedMethod || 'internal',
+              origin: 'user',
+              raw: tx
+            });
+          });
+
+          allAdminTransactions.forEach(tx => {
+            list.push({
+              id: tx.id,
+              userId: tx.fromUid || 'Admin Pool',
+              type: tx.type || 'funding',
+              amount: tx.amount || 0,
+              description: tx.notes || `Admin pool ${tx.type}`,
+              category: 'Admin Pool',
+              status: tx.status || 'completed',
+              date: tx.createdAt,
+              method: tx.derivedMethod || 'internal',
+              origin: 'admin',
+              raw: tx
+            });
+          });
+
+          // Sort descending by date
+          list.sort((a, b) => {
+            const getMs = (val: any) => {
+              if (!val) return 0;
+              if (val.toDate) return val.toDate().getTime();
+              if (val.seconds) return val.seconds * 1000;
+              return new Date(val).getTime();
+            };
+            return getMs(b.date) - getMs(a.date);
+          });
+
+          return list;
+        })();
+
+        // Map method labels & icons
+        const methodMeta: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+          stripe: { label: 'Stripe Global', color: 'text-blue-500', bg: 'bg-blue-500/10 border-blue-500/20', icon: CreditCard },
+          paypal: { label: 'PayPal Direct', color: 'text-indigo-400', bg: 'bg-indigo-500/10 border-indigo-500/20', icon: Globe },
+          bitcoin: { label: 'Bitcoin network', color: 'text-amber-500', bg: 'bg-amber-500/10 border-amber-500/20', icon: Bitcoin },
+          internal: { label: 'Internal Transfer', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', icon: Wallet },
+        };
+
+        // Live Method-Specific Statistics calculation
+        const statsByMethod = unifiedTransactions.reduce((acc, tx) => {
+          const m = tx.method;
+          if (!acc[m]) acc[m] = { total: 0, count: 0, completed: 0, pending: 0 };
+          acc[m].count += 1;
+          acc[m].total += tx.amount;
+          if (tx.status === 'completed') acc[m].completed += tx.amount;
+          if (tx.status === 'pending') acc[m].pending += tx.amount;
+          return acc;
+        }, {} as Record<string, { total: number; count: number; completed: number; pending: number }>);
+
+        const getMethodStats = (m: string) => {
+          return statsByMethod[m] || { total: 0, count: 0, completed: 0, pending: 0 };
+        };
+
+        // Filter Transactions
+        const filteredTransactions = unifiedTransactions.filter(tx => {
+          const matchesMethod = paymentMethodFilter === 'all' || tx.method === paymentMethodFilter;
+          const searchLower = (paymentSearchQuery || '').toLowerCase();
+          const matchesSearch = 
+            (tx.id || '').toLowerCase().includes(searchLower) ||
+            (tx.userId || '').toLowerCase().includes(searchLower) ||
+            (tx.description || '').toLowerCase().includes(searchLower) ||
+            (tx.category || '').toLowerCase().includes(searchLower);
+          return matchesMethod && matchesSearch;
+        });
+
+        // Date formatter helper
+        const formatTxDate = (dateVal: any) => {
+          if (!dateVal) return 'Processing...';
+          let d: Date;
+          if (dateVal.toDate) d = dateVal.toDate();
+          else if (dateVal.seconds) d = new Date(dateVal.seconds * 1000);
+          else d = new Date(dateVal);
+          return d.toLocaleString();
+        };
+
+        // Handle quick status approval or change
+        const handleUpdateTxStatus = async (tx: any, newStatus: 'completed' | 'failed') => {
+          try {
+            if (tx.origin === 'user') {
+              const txRef = doc(db, 'transactions', tx.id);
+              await updateDoc(txRef, { status: newStatus });
+              
+              // If it was a pending withdrawal and now failed, refund the user
+              if (tx.type === 'withdraw' && newStatus === 'failed') {
+                const userRef = doc(db, 'users', tx.userId);
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) {
+                  const currentBalance = userSnap.data().balance || 0;
+                  await updateDoc(userRef, {
+                    balance: currentBalance + tx.amount
+                  });
+                  toast.success(`Withdrawal failed. Refunded $${tx.amount.toLocaleString()} to user ${tx.userId}`);
+                }
+              } else {
+                toast.success(`Transaction successfully marked as ${newStatus}`);
+              }
+            } else if (tx.origin === 'admin') {
+              const txRef = doc(db, 'admin_transactions', tx.id);
+              await updateDoc(txRef, { status: newStatus });
+              toast.success(`Admin transaction marked as ${newStatus}`);
+            }
+          } catch (error: any) {
+            console.error("Error updating transaction status:", error);
+            toast.error("Failed to update status: " + error.message);
+          }
+        };
+
+        // Handle recording a manual entry
+        const handleRecordManualTx = async () => {
+          if (!manualTxData.userId || !manualTxData.amount || Number(manualTxData.amount) <= 0) {
+            toast.error("Please provide a valid recipient user ID and positive amount.");
+            return;
+          }
+          setIsRecordingTx(true);
+          try {
+            const amountNum = Number(manualTxData.amount);
+            
+            // Build rich transaction document
+            const txPayload: any = {
+              userId: manualTxData.userId,
+              type: manualTxData.type,
+              amount: amountNum,
+              description: `Manual Entry: ${manualTxData.notes || 'No notes'}`,
+              category: 'Manual Ledger',
+              status: 'completed',
+              date: Timestamp.now()
+            };
+
+            // Adjust user active balance if user document exists
+            const userRef = doc(db, 'users', manualTxData.userId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              const currentBal = userSnap.data().balance || 0;
+              const adjust = manualTxData.type === 'deposit' ? amountNum : -amountNum;
+              await updateDoc(userRef, {
+                balance: currentBal + adjust
+              });
+              toast.success(`Adjusted balance for user ${userSnap.data().name || manualTxData.userId} by $${adjust.toLocaleString()}`);
+            } else {
+              toast.info("Ledger entry stored. (Note: Recipient UID not active/found; balance unadjusted)");
+            }
+
+            await addDoc(collection(db, 'transactions'), txPayload);
+            toast.success("Transaction recorded successfully in live system ledger!");
+            setShowManualTxModal(false);
+            setManualTxData({
+              userId: '',
+              amount: '',
+              method: 'stripe',
+              type: 'deposit',
+              notes: ''
+            });
+          } catch (error: any) {
+            console.error("Manual tx record error:", error);
+            toast.error("Failed to record entry: " + error.message);
+          } finally {
+            setIsRecordingTx(false);
+          }
+        };
+
         return (
-          <div className="space-y-8">
+          <div className="space-y-8 animate-in fade-in duration-500">
+            {/* Payment Method Specific Stats Row */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Total Platform Revenue</p>
-                <p className="text-3xl font-bold text-white">$1,245,850</p>
-                <p className="text-xs text-emerald-500 mt-2 font-bold">+12.5% this month</p>
-              </div>
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Total User Balances</p>
-                <p className="text-3xl font-bold text-white">$458,200</p>
-                <p className="text-xs text-gray-500 mt-2 font-bold">Held in platform wallet</p>
-              </div>
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Net Profit (Fees)</p>
-                <p className="text-3xl font-bold text-[var(--color-supreme-gold)]">$787,650</p>
-                <p className="text-xs text-emerald-500 mt-2 font-bold">+15.4% this month</p>
-              </div>
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Pending Payouts</p>
-                <p className="text-3xl font-bold text-orange-500">$12,450</p>
-                <p className="text-xs text-orange-500/50 mt-2 font-bold">Awaiting approval</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-white">Payment Gateway Status</h3>
-                  <div className="flex gap-2">
-                    <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-full text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20">All Systems Online</span>
+              {/* PayPal Card */}
+              <div className="bg-gradient-to-br from-indigo-950/40 to-black p-6 rounded-3xl border border-indigo-500/10 shadow-lg relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 bg-indigo-500/5 rounded-full blur-xl translate-x-1/3 -translate-y-1/3 group-hover:scale-110 transition-transform duration-500" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl border border-indigo-500/20">
+                    <Globe className="w-5 h-5" />
                   </div>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">Active gateway</span>
                 </div>
-                <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
-                        <CreditCard className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-white">Stripe Platform</p>
-                        <p className="text-xs text-gray-500">Connected to: billworlddream1@gmail.com</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-500">Active</span>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-500">
-                        <Globe className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-white">PayPal Business</p>
-                        <p className="text-xs text-gray-500">Manual Payouts Enabled</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-500">Active</span>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 rounded-xl bg-orange-500/10 text-orange-500">
-                        <Database className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-white">Crypto Wallet</p>
-                        <p className="text-xs text-gray-500">BTC/ETH/USDT Supported</p>
-                      </div>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-500">Active</span>
-                  </div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">PayPal Direct Volume</p>
+                <p className="text-3xl font-bold text-white">${getMethodStats('paypal').total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500 font-medium">
+                  <span>{getMethodStats('paypal').count} Transactions</span>
+                  {getMethodStats('paypal').pending > 0 && <span className="text-yellow-500 font-bold">${getMethodStats('paypal').pending} Pending</span>}
                 </div>
               </div>
 
-              <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10">
-                <h3 className="text-xl font-bold text-white mb-6">Payout Management</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
-                    <div>
-                      <p className="font-bold text-white">Automatic Payouts</p>
-                      <p className="text-xs text-gray-500">Instant transfers via Stripe Connect</p>
-                    </div>
-                    <button className="w-12 h-6 rounded-full bg-emerald-500 relative">
-                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-white" />
-                    </button>
+              {/* Stripe Card */}
+              <div className="bg-gradient-to-br from-blue-950/40 to-black p-6 rounded-3xl border border-blue-500/10 shadow-lg relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 bg-blue-500/5 rounded-full blur-xl translate-x-1/3 -translate-y-1/3 group-hover:scale-110 transition-transform duration-500" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20">
+                    <CreditCard className="w-5 h-5" />
                   </div>
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10">
-                    <div>
-                      <p className="font-bold text-white">Manual Review</p>
-                      <p className="text-xs text-gray-500">Flag payouts over $500 for review</p>
-                    </div>
-                    <button className="w-12 h-6 rounded-full bg-emerald-500 relative">
-                      <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-white" />
-                    </button>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">Active gateway</span>
+                </div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Stripe Global Volume</p>
+                <p className="text-3xl font-bold text-white">${getMethodStats('stripe').total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500 font-medium">
+                  <span>{getMethodStats('stripe').count} Transactions</span>
+                  {getMethodStats('stripe').pending > 0 && <span className="text-yellow-500 font-bold">${getMethodStats('stripe').pending} Pending</span>}
+                </div>
+              </div>
+
+              {/* Bitcoin Card */}
+              <div className="bg-gradient-to-br from-amber-950/30 to-black p-6 rounded-3xl border border-amber-500/10 shadow-lg relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 bg-amber-500/5 rounded-full blur-xl translate-x-1/3 -translate-y-1/3 group-hover:scale-110 transition-transform duration-500" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20">
+                    <Bitcoin className="w-5 h-5" />
                   </div>
-                  <div className="pt-4">
-                    <button className="w-full py-3 bg-[var(--color-supreme-gold)] text-black font-bold rounded-xl hover:bg-yellow-500 transition-all">
-                      Process All Pending Payouts
-                    </button>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">Active ledger</span>
+                </div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Bitcoin Network Volume</p>
+                <p className="text-3xl font-bold text-white">${getMethodStats('bitcoin').total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500 font-medium">
+                  <span>{getMethodStats('bitcoin').count} Transactions</span>
+                  {getMethodStats('bitcoin').pending > 0 && <span className="text-yellow-500 font-bold">${getMethodStats('bitcoin').pending} Pending</span>}
+                </div>
+              </div>
+
+              {/* Internal Transfers Card */}
+              <div className="bg-gradient-to-br from-emerald-950/30 to-black p-6 rounded-3xl border border-emerald-500/10 shadow-lg relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 bg-emerald-500/5 rounded-full blur-xl translate-x-1/3 -translate-y-1/3 group-hover:scale-110 transition-transform duration-500" />
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20">
+                    <Wallet className="w-5 h-5" />
                   </div>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest">No fee</span>
+                </div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Internal Transfers Volume</p>
+                <p className="text-3xl font-bold text-white">${getMethodStats('internal').total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
+                <div className="flex items-center justify-between mt-3 text-xs text-gray-500 font-medium">
+                  <span>{getMethodStats('internal').count} Transactions</span>
+                  {getMethodStats('internal').pending > 0 && <span className="text-yellow-500 font-bold">${getMethodStats('internal').pending} Pending</span>}
                 </div>
               </div>
             </div>
 
-            <div className="bg-white/5 backdrop-blur-xl rounded-[2.5rem] border border-white/10 overflow-hidden">
-              <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                <h3 className="text-xl font-bold text-white">Financial Transactions</h3>
-                <div className="flex gap-2">
-                  <button className="px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-xl text-xs font-bold border border-emerald-500/20">Export CSV</button>
+            {/* Live Filter Controls & Manual Record Row */}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white/5 p-6 rounded-[2rem] border border-white/10 backdrop-blur-md">
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                <button
+                  onClick={() => setPaymentMethodFilter('all')}
+                  className={clsx(
+                    "px-4 py-2.5 rounded-xl font-bold text-xs transition-all uppercase tracking-wider",
+                    paymentMethodFilter === 'all' 
+                      ? "bg-[var(--color-supreme-gold)] text-black" 
+                      : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  All Methods
+                </button>
+                <button
+                  onClick={() => setPaymentMethodFilter('paypal')}
+                  className={clsx(
+                    "px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 uppercase tracking-wider",
+                    paymentMethodFilter === 'paypal' 
+                      ? "bg-indigo-600 text-white" 
+                      : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Globe className="w-3.5 h-3.5" /> PayPal
+                </button>
+                <button
+                  onClick={() => setPaymentMethodFilter('stripe')}
+                  className={clsx(
+                    "px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 uppercase tracking-wider",
+                    paymentMethodFilter === 'stripe' 
+                      ? "bg-blue-600 text-white" 
+                      : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <CreditCard className="w-3.5 h-3.5" /> Stripe
+                </button>
+                <button
+                  onClick={() => setPaymentMethodFilter('bitcoin')}
+                  className={clsx(
+                    "px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 uppercase tracking-wider",
+                    paymentMethodFilter === 'bitcoin' 
+                      ? "bg-amber-500 text-black" 
+                      : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Bitcoin className="w-3.5 h-3.5" /> Bitcoin
+                </button>
+                <button
+                  onClick={() => setPaymentMethodFilter('internal')}
+                  className={clsx(
+                    "px-4 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 uppercase tracking-wider",
+                    paymentMethodFilter === 'internal' 
+                      ? "bg-emerald-500 text-black" 
+                      : "bg-white/5 text-gray-400 border border-white/5 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <Wallet className="w-3.5 h-3.5" /> Internal
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-stretch sm:items-center">
+                <div className="relative flex-1 sm:flex-none">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search ledger entries..."
+                    value={paymentSearchQuery}
+                    onChange={(e) => setPaymentSearchQuery(e.target.value)}
+                    className="pl-10 pr-4 py-2.5 w-full sm:w-64 bg-black/50 border border-white/10 rounded-xl text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[var(--color-supreme-gold)]"
+                  />
+                </div>
+
+                <button 
+                  onClick={() => setShowManualTxModal(true)}
+                  className="px-5 py-2.5 bg-[var(--color-supreme-gold)] text-black font-bold text-xs rounded-xl hover:bg-yellow-500 transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-[var(--color-supreme-gold)]/20 uppercase tracking-widest whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" /> Record Ledger Entry
+                </button>
+              </div>
+            </div>
+
+            {/* Main Unified Live Ledger */}
+            <div className="bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl backdrop-blur-md">
+              <div className="p-8 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <ClipboardList className="w-5 h-5 text-[var(--color-supreme-gold)]" />
+                    Central Transaction Ledger
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1 font-medium">Real-time status tracking for Stripe, PayPal, Bitcoin networks, and internal user-to-user transfers.</p>
+                </div>
+                <div className="flex items-center gap-2 bg-black/30 p-1.5 rounded-lg border border-white/5">
+                  <span className="text-[10px] text-gray-400 font-bold px-2 uppercase tracking-widest">Active Entries: {filteredTransactions.length}</span>
                 </div>
               </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-white/5">
+                    <tr className="bg-white/5 border-b border-white/5">
                       <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Transaction ID</th>
-                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Type</th>
+                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Recipient / Target UID</th>
+                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Flow Description</th>
+                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Gateway Method</th>
                       <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Amount</th>
                       <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Status</th>
-                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date</th>
+                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Date & Time</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {[
-                      { id: 'tx-1', type: 'Subscription', amount: '+$49.99', status: 'Completed', date: '2 mins ago' },
-                      { id: 'tx-2', type: 'Payout', amount: '-$1,200.00', status: 'Pending', date: '15 mins ago' },
-                      { id: 'tx-3', type: 'Ad Revenue', amount: '+$840.00', status: 'Completed', date: '45 mins ago' },
-                      { id: 'tx-4', type: 'Subscription', amount: '+$199.99', status: 'Completed', date: '1 hour ago' },
-                    ].map((tx) => (
-                      <tr key={tx.id} className="hover:bg-white/5 transition-colors">
-                        <td className="px-8 py-4 font-mono text-xs text-gray-400">{tx.id}</td>
-                        <td className="px-8 py-4 text-sm text-white font-bold">{tx.type}</td>
-                        <td className={`px-8 py-4 font-bold ${tx.amount.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>{tx.amount}</td>
-                        <td className="px-8 py-4">
-                          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-widest ${tx.status === 'Completed' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-yellow-500/10 text-yellow-500'}`}>{tx.status}</span>
+                    {filteredTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-20 text-gray-500 font-semibold">
+                          <AlertTriangle className="w-12 h-12 text-amber-500/50 mx-auto mb-3" />
+                          No matching payments found in live ledger.
                         </td>
-                        <td className="px-8 py-4 text-sm text-gray-500">{tx.date}</td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredTransactions.map((tx) => {
+                        const meta = methodMeta[tx.method] || { label: 'Internal', color: 'text-gray-400', bg: 'bg-white/5 border-white/5', icon: Wallet };
+                        const isPending = tx.status === 'pending';
+                        const isFlowWithdraw = tx.type === 'withdraw' || tx.type === 'withdrawal';
+                        const isFlowDeposit = tx.type === 'deposit' || tx.type === 'funding';
+                        return (
+                          <tr key={tx.id} className="hover:bg-white/5 transition-colors duration-200">
+                            <td className="px-8 py-4 font-mono text-xs text-gray-400 select-all" title="Click to select & copy">{tx.id}</td>
+                            <td className="px-8 py-4">
+                              <div className="max-w-[150px] truncate font-mono text-xs font-bold text-white select-all" title={tx.userId}>
+                                {tx.userId}
+                              </div>
+                              <span className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">{tx.origin === 'admin' ? 'Admin Pool Flow' : 'User Transaction'}</span>
+                            </td>
+                            <td className="px-8 py-4">
+                              <p className="text-sm text-white font-medium line-clamp-1">{tx.description}</p>
+                              {tx.category && <span className="text-[10px] font-bold text-gray-500">{tx.category}</span>}
+                            </td>
+                            <td className="px-8 py-4">
+                              <span className={clsx(
+                                "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold uppercase tracking-wider",
+                                meta.color,
+                                meta.bg
+                              )}>
+                                <meta.icon className="w-3.5 h-3.5" />
+                                {meta.label}
+                              </span>
+                            </td>
+                            <td className="px-8 py-4 font-bold">
+                              <p className={clsx(
+                                "text-sm",
+                                isFlowDeposit ? 'text-emerald-500' : isFlowWithdraw ? 'text-amber-500' : 'text-white'
+                              )}>
+                                {isFlowDeposit ? '+' : isFlowWithdraw ? '-' : ''}${tx.amount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                              </p>
+                              <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{tx.type}</span>
+                            </td>
+                            <td className="px-8 py-4">
+                              {isPending ? (
+                                <div className="flex flex-col gap-1.5">
+                                  <span className="px-2.5 py-1 rounded bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-[10px] font-bold uppercase tracking-widest text-center w-24">
+                                    PENDING
+                                  </span>
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => handleUpdateTxStatus(tx, 'completed')}
+                                      className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] uppercase tracking-wider rounded transition-colors"
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      onClick={() => handleUpdateTxStatus(tx, 'failed')}
+                                      className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white font-black text-[9px] uppercase tracking-wider rounded transition-colors"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className={clsx(
+                                  "px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-widest border",
+                                  tx.status === 'completed' 
+                                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                                    : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                )}>
+                                  {tx.status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-8 py-4 text-xs text-gray-400 font-medium">{formatTxDate(tx.date)}</td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            {/* Manual Record Modal */}
+            <AnimatePresence>
+              {showManualTxModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.9, opacity: 0 }}
+                    className="bg-gray-900 w-full max-w-lg rounded-[2.5rem] border border-white/10 p-8 shadow-2xl relative"
+                  >
+                    <button
+                      onClick={() => setShowManualTxModal(false)}
+                      className="absolute top-6 right-6 p-2 bg-white/5 hover:bg-white/10 text-white rounded-full transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+
+                    <h3 className="text-2xl font-bold text-white mb-2 tracking-tight flex items-center gap-2">
+                      <Coins className="w-6 h-6 text-[var(--color-supreme-gold)]" />
+                      Record central Ledger Entry
+                    </h3>
+                    <p className="text-gray-400 text-sm mb-6 font-medium">Manually book Stripe, PayPal, Bitcoin, or Internal transfers to correct user balances or record physical cash/external payment actions.</p>
+
+                    <div className="space-y-5">
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-widest">Target User UID</label>
+                        <input
+                          type="text"
+                          value={manualTxData.userId}
+                          onChange={(e) => setManualTxData({ ...manualTxData, userId: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-[var(--color-supreme-gold)] outline-none"
+                          placeholder="Enter active user UID (e.g., Jf83kLs0s...)"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-widest">Flow Type</label>
+                          <select
+                            value={manualTxData.type}
+                            onChange={(e) => setManualTxData({ ...manualTxData, type: e.target.value as any })}
+                            className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-[var(--color-supreme-gold)] outline-none"
+                          >
+                            <option value="deposit">Deposit (In-Flow)</option>
+                            <option value="withdraw">Withdrawal (Out-Flow)</option>
+                            <option value="transfer">Internal Transfer</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-widest">Payment Method</label>
+                          <select
+                            value={manualTxData.method}
+                            onChange={(e) => setManualTxData({ ...manualTxData, method: e.target.value as any })}
+                            className="w-full bg-black border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-[var(--color-supreme-gold)] outline-none"
+                          >
+                            <option value="stripe">Stripe Global</option>
+                            <option value="paypal">PayPal Direct</option>
+                            <option value="bitcoin">Bitcoin Network</option>
+                            <option value="internal">Internal Balance Transfer</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-widest">Amount ($)</label>
+                        <input
+                          type="number"
+                          value={manualTxData.amount}
+                          onChange={(e) => setManualTxData({ ...manualTxData, amount: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white font-bold text-xl focus:border-[var(--color-supreme-gold)] outline-none"
+                          placeholder="0.00"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-gray-500 uppercase mb-2 block tracking-widest">Reference Notes</label>
+                        <textarea
+                          value={manualTxData.notes}
+                          onChange={(e) => setManualTxData({ ...manualTxData, notes: e.target.value })}
+                          className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm focus:border-[var(--color-supreme-gold)] outline-none resize-none h-20"
+                          placeholder="State reason, reference txn hash, etc."
+                        />
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => setShowManualTxModal(false)}
+                          className="flex-1 py-4 bg-white/5 text-white font-bold rounded-2xl text-xs uppercase tracking-widest hover:bg-white/10 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleRecordManualTx}
+                          disabled={isRecordingTx}
+                          className="flex-1 py-4 bg-[var(--color-supreme-gold)] text-black font-bold rounded-2xl text-xs uppercase tracking-widest hover:bg-yellow-500 transition-colors disabled:opacity-50"
+                        >
+                          {isRecordingTx ? 'Processing...' : 'Commit Ledger Entry'}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         );
+      }
       case 'revenue_management':
         return (
           <div className="space-y-8">
@@ -3018,7 +3738,7 @@ export default function AdminDashboard() {
                   <tbody className="divide-y divide-white/5">
                     {siteUsers
                       .filter(u => (u.role === 'dealer' || u.hasAcceptedMarketPolicy) && 
-                        (u.name.toLowerCase().includes(searchQuery.toLowerCase()) || u.email.toLowerCase().includes(searchQuery.toLowerCase())))
+                        ((u.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || (u.email || '').toLowerCase().includes((searchQuery || '').toLowerCase())))
                       .map((dealer) => (
                       <tr key={dealer.id} className="hover:bg-white/5 transition-colors">
                         <td className="px-8 py-4">
@@ -3107,7 +3827,7 @@ export default function AdminDashboard() {
           </div>
         );
       case 'subscription_management':
-        return <SubscriptionManagement />;
+        return <AdminSubscriptionManager />;
       case 'members':
         return (
           <div className="space-y-8">
@@ -3160,9 +3880,9 @@ export default function AdminDashboard() {
                   <tbody className="divide-y divide-white/5">
                     {siteUsers
                       .filter(u => 
-                        u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        u.handle?.toLowerCase().includes(searchQuery.toLowerCase())
+                        (u.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || 
+                        (u.email || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
+                        (u.handle || '').toLowerCase().includes((searchQuery || '').toLowerCase())
                       )
                       .slice(0, 50)
                       .map((member, i) => {
@@ -3779,74 +4499,10 @@ export default function AdminDashboard() {
       case 'security':
         return (
           <div className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Firewall</p>
-                    <p className="text-xl font-bold text-white">Active</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                    <LockIcon className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">SSL</p>
-                    <p className="text-xl font-bold text-white">Valid</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="p-3 rounded-2xl bg-red-500/10 text-red-500 border border-red-500/20">
-                    <AlertTriangle className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Threats</p>
-                    <p className="text-xl font-bold text-white">1,248</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10">
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-500 border border-purple-500/20">
-                    <Shield className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">IP Blocks</p>
-                    <p className="text-xl font-bold text-white">42</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Dynamic Dashboard Statistics & Load Tracking */}
+            <DashboardStats />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10">
-                <h3 className="text-xl font-bold text-white mb-8">Security Analysis</h3>
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={[
-                      { type: 'Brute Force', count: 450 },
-                      { type: 'DDoS', count: 120 },
-                      { type: 'SQL Injection', count: 85 },
-                      { type: 'XSS', count: 210 },
-                    ]}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ffffff10" />
-                      <XAxis dataKey="type" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#666' }} />
-                      <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid #333', borderRadius: '16px' }} />
-                      <Bar dataKey="count" fill="#ef4444" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
               <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10">
                 <div className="flex justify-between items-center mb-8">
                   <h3 className="text-xl font-bold text-white">IP Blocking</h3>
@@ -4090,6 +4746,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         );
+      case 'audit_logs':
+        return <AdminAuditLogs />;
       case 'chat':
         return (
           <div className="h-[700px] bg-white/5 backdrop-blur-xl rounded-[2.5rem] border border-white/10 overflow-hidden flex shadow-2xl">
@@ -4400,7 +5058,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         );
-      case 'settings':
+      case 'settings': {
+        const currentSettings = localSystemSettings || settings;
         return (
           <div className="max-w-4xl space-y-8">
             <div>
@@ -4427,8 +5086,8 @@ export default function AdminDashboard() {
                     <div className="flex gap-2">
                       <input 
                         type="text" 
-                        value={settings.stripePlatformAccount}
-                        onChange={(e) => updateSettings({ stripePlatformAccount: e.target.value })}
+                        value={currentSettings.stripePlatformAccount}
+                        onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), stripePlatformAccount: e.target.value }))}
                         className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
                       />
                     </div>
@@ -4439,8 +5098,8 @@ export default function AdminDashboard() {
                     <input 
                       type="email" 
                       placeholder="paypal@yourdomain.com"
-                      value={settings.paypalBusinessEmail}
-                      onChange={(e) => updateSettings({ paypalBusinessEmail: e.target.value })}
+                      value={currentSettings.paypalBusinessEmail}
+                      onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), paypalBusinessEmail: e.target.value }))}
                       className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
                     />
                     <p className="text-[10px] text-gray-600 italic">Used for manual payouts and platform notifications.</p>
@@ -4453,8 +5112,8 @@ export default function AdminDashboard() {
                     <input 
                       type="text" 
                       placeholder="bc1q..."
-                      value={settings.bitcoinWalletAddress}
-                      onChange={(e) => updateSettings({ bitcoinWalletAddress: e.target.value })}
+                      value={currentSettings.bitcoinWalletAddress}
+                      onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), bitcoinWalletAddress: e.target.value }))}
                       className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
                     />
                     <p className="text-[10px] text-gray-600 italic">Used for receiving platform fees via Bitcoin.</p>
@@ -4464,12 +5123,37 @@ export default function AdminDashboard() {
                     <div className="relative">
                       <input 
                         type="number" 
-                        value={settings.platformFeePercentage}
-                        onChange={(e) => updateSettings({ platformFeePercentage: Number(e.target.value) })}
+                        value={currentSettings.platformFeePercentage}
+                        onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), platformFeePercentage: Number(e.target.value) }))}
                         className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
                       />
                       <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">%</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">Tether USDT Wallet Address (TRC20)</label>
+                    <input 
+                      type="text" 
+                      placeholder="TYfVf..."
+                      value={currentSettings.usdtWalletAddress || ''}
+                      onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), usdtWalletAddress: e.target.value }))}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
+                    />
+                    <p className="text-[10px] text-gray-600 italic">Used for receiving stablecoin deposits and payouts.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">Bank Wire IBAN / Coordinates</label>
+                    <input 
+                      type="text" 
+                      placeholder="GB49 APEX..."
+                      value={currentSettings.bankWireCoordinates || ''}
+                      onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), bankWireCoordinates: e.target.value }))}
+                      className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
+                    />
+                    <p className="text-[10px] text-gray-600 italic">Used as the default bank account for manual clearing wire deposits.</p>
                   </div>
                 </div>
 
@@ -4480,8 +5164,8 @@ export default function AdminDashboard() {
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">$</span>
                       <input 
                         type="number" 
-                        value={settings.minimumPayoutAmount}
-                        onChange={(e) => updateSettings({ minimumPayoutAmount: Number(e.target.value) })}
+                        value={currentSettings.minimumPayoutAmount}
+                        onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), minimumPayoutAmount: Number(e.target.value) }))}
                         className="w-full bg-black/50 border border-white/10 rounded-xl pl-8 pr-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
                       />
                     </div>
@@ -4490,8 +5174,8 @@ export default function AdminDashboard() {
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">Global Payout Limit</label>
                     <input 
                       type="text" 
-                      value={settings.globalPayoutLimit}
-                      onChange={(e) => updateSettings({ globalPayoutLimit: e.target.value })}
+                      value={currentSettings.globalPayoutLimit}
+                      onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), globalPayoutLimit: e.target.value }))}
                       className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-[var(--color-supreme-gold)]"
                     />
                   </div>
@@ -4513,10 +5197,10 @@ export default function AdminDashboard() {
               <h4 className="text-xl font-bold text-white mb-6">General Platform Controls</h4>
               <div className="grid grid-cols-1 gap-6">
                 {[
-                  { id: 'maintenanceMode', title: 'Maintenance Mode', desc: 'Temporarily disable public access to the platform', type: 'toggle', active: settings.maintenanceMode },
-                  { id: 'userRegistration', title: 'User Registration', desc: 'Allow new users to create accounts', type: 'toggle', active: settings.userRegistration },
-                  { id: 'aiFeatures', title: 'AI Features', desc: 'Enable Gemini-powered tools across the app', type: 'toggle', active: settings.aiFeatures },
-                  { id: 'adFrequency', title: 'Ad Frequency', desc: 'Number of posts between ad banners', type: 'input', value: settings.adFrequency },
+                  { id: 'maintenanceMode', title: 'Maintenance Mode', desc: 'Temporarily disable public access to the platform', type: 'toggle', active: currentSettings.maintenanceMode },
+                  { id: 'userRegistration', title: 'User Registration', desc: 'Allow new users to create accounts', type: 'toggle', active: currentSettings.userRegistration },
+                  { id: 'aiFeatures', title: 'AI Features', desc: 'Enable Gemini-powered tools across the app', type: 'toggle', active: currentSettings.aiFeatures },
+                  { id: 'adFrequency', title: 'Ad Frequency', desc: 'Number of posts between ad banners', type: 'input', value: currentSettings.adFrequency },
                 ].map((setting, i) => (
                   <div key={i} className="bg-white/5 p-6 rounded-3xl border border-white/5 flex items-center justify-between">
                     <div>
@@ -4525,7 +5209,7 @@ export default function AdminDashboard() {
                     </div>
                     {setting.type === 'toggle' ? (
                       <button 
-                        onClick={() => updateSettings({ [setting.id]: !setting.active })}
+                        onClick={() => setLocalSystemSettings(prev => ({ ...(prev || settings), [setting.id]: !setting.active }))}
                         className={`w-12 h-6 rounded-full relative transition-all ${setting.active ? 'bg-[var(--color-supreme-gold)]' : 'bg-white/10'}`}
                       >
                         <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${setting.active ? 'right-1' : 'left-1'}`} />
@@ -4534,7 +5218,7 @@ export default function AdminDashboard() {
                       <input 
                         type="number" 
                         value={setting.value}
-                        onChange={(e) => updateSettings({ [setting.id]: Number(e.target.value) })}
+                        onChange={(e) => setLocalSystemSettings(prev => ({ ...(prev || settings), [setting.id]: Number(e.target.value) }))}
                         className="bg-black/50 border border-white/10 rounded-lg px-4 py-2 text-white text-sm w-32 text-right focus:outline-none focus:border-[var(--color-supreme-gold)]"
                       />
                     )}
@@ -4544,19 +5228,56 @@ export default function AdminDashboard() {
             </div>
 
             <div className="pt-4 flex gap-4">
-              <button className="px-8 py-3 bg-[var(--color-supreme-gold)] text-black font-bold rounded-xl hover:bg-yellow-500 transition-colors">Save Changes</button>
-              <button className="px-8 py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-colors">Reset Defaults</button>
+              <button 
+                onClick={async () => {
+                  if (isSavingSettings) return;
+                  setIsSavingSettings(true);
+                  try {
+                    await updateSettings(currentSettings);
+                    toast.success('Central system settings updated and saved successfully!');
+                  } catch (error: any) {
+                    toast.error('Failed to update system settings: ' + error.message);
+                  } finally {
+                    setIsSavingSettings(false);
+                  }
+                }}
+                disabled={isSavingSettings}
+                className="px-8 py-3 bg-[var(--color-supreme-gold)] text-black font-bold rounded-xl hover:bg-yellow-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSavingSettings ? 'Saving...' : 'Save Changes'}
+              </button>
+              <button 
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to reset system settings to template defaults?")) {
+                    const defaults = {
+                      stripePlatformAccount: 'billworlddream1@gmail.com',
+                      paypalBusinessEmail: 'billworlddream1@gmail.com',
+                      bitcoinWalletAddress: '151nvA1dL4FhKzzKye5o48quApNFnXS3Qm',
+                      platformFeePercentage: 15,
+                      minimumPayoutAmount: 50,
+                      maintenanceMode: false,
+                      userRegistration: true,
+                      aiFeatures: true,
+                      adFrequency: 5,
+                    };
+                    setLocalSystemSettings(prev => ({ ...(prev || settings), ...defaults }));
+                    toast.info("System settings restored to template defaults. Click 'Save Changes' to commit.");
+                  }
+                }}
+                className="px-8 py-3 bg-white/5 text-white font-bold rounded-xl hover:bg-white/10 transition-colors"
+              >
+                Reset Defaults
+              </button>
             </div>
           </div>
         );
+      }
       case 'mining_management':
         return <AdminMiningManager />;
       case 'rewards':
         return <AdminRewards />;
       case 'supreme_market':
         return <SupremeMarketAdmin />;
-      case 'feature_control':
-        return <FeatureControlAdmin />;
       default:
         return null;
     }

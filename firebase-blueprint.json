@@ -454,9 +454,58 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["amount", "type", "status", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Represents a push or system notification for users.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "userId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "message", "timestamp"]
+    },
+    "AppealBilling": {
+      "title": "Appeal Billing",
+      "description": "A payment billing record for a user's status protection appeal subscription.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "planId": { "type": "string" },
+        "price": { "type": "number" },
+        "duration": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "planId", "price", "duration", "timestamp"]
+    },
+    "Status": {
+      "title": "Profile Status",
+      "description": "Short-lived user status that expires and disappears after 50 hours.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique status ID." },
+        "userId": { "type": "string", "description": "UID of the user." },
+        "userName": { "type": "string", "description": "Public name of the user." },
+        "userAvatar": { "type": "string", "description": "Avatar URL of the user." },
+        "mediaType": { "type": "string", "enum": ["image", "video", "music"], "description": "Type of status media." },
+        "mediaUrl": { "type": "string", "description": "URL of the image, video, or music file." },
+        "caption": { "type": "string", "description": "Optional caption text." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the status was created." },
+        "expiresAt": { "type": "string", "format": "date-time", "description": "Calculated expiration timestamp (50 hours after creation)." },
+        "duration": { "type": "integer", "description": "Duration in seconds (maximum 60 for video/music)." }
+      },
+      "required": ["userId", "userName", "mediaType", "mediaUrl", "createdAt", "expiresAt"]
     }
   },
   "firestore": {
+    "/statuses/{statusId}": {
+      "schema": "Status",
+      "description": "Short-lived visual statuses posted by users, expiring after 50 hours."
+    },
     "/users/{uid}": {
       "schema": "User",
       "description": "Individual user profile documents."
@@ -560,6 +609,14 @@
     "/admin_transactions/{txId}": {
       "schema": "AdminTransaction",
       "description": "Transactions history for admin wallets."
+    },
+    "/notifications/{notifId}": {
+      "schema": "Notification",
+      "description": "System or push push notification for user accounts."
+    },
+    "/appeal_billings/{billingId}": {
+      "schema": "AppealBilling",
+      "description": "Appeal status payment records for protected billing plans."
     }
   }
 }

@@ -1,12 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Crown, Mail, Lock, User, Briefcase, ArrowLeft, Shield, AlertTriangle, Clock, Eye, EyeOff } from 'lucide-react';
+import { Crown, Mail, Lock, User, Briefcase, ArrowLeft, Shield, AlertTriangle, Clock, Eye, EyeOff, Check, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAdmin } from '../context/AdminContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { event } from '../utils/analytics';
+import { clsx } from 'clsx';
 
 type AuthMode = 'selection' | 'user' | 'dealer';
+
+// Helper to evaluate password strength
+const getPasswordStrength = (pass: string) => {
+  if (!pass) return { score: 0, text: 'Empty', color: 'text-gray-400', barColor: 'bg-gray-200', barWidth: 'w-0' };
+  
+  let score = 0;
+  if (pass.length >= 8) score++;
+  if (/[A-Z]/.test(pass)) score++;
+  if (/[a-z]/.test(pass)) score++;
+  if (/[0-9]/.test(pass)) score++;
+  if (/[^A-Za-z0-9]/.test(pass)) score++;
+  
+  switch (score) {
+    case 1:
+      return { score, text: 'Very Weak', color: 'text-red-500', barColor: 'bg-red-500', barWidth: 'w-1/5' };
+    case 2:
+      return { score, text: 'Weak', color: 'text-orange-500', barColor: 'bg-orange-500', barWidth: 'w-2/5' };
+    case 3:
+      return { score, text: 'Fair', color: 'text-amber-500', barColor: 'bg-amber-500', barWidth: 'w-3/5' };
+    case 4:
+      return { score, text: 'Good', color: 'text-blue-500', barColor: 'bg-blue-500', barWidth: 'w-4/5' };
+    case 5:
+      return { score, text: 'Strong', color: 'text-emerald-500', barColor: 'bg-emerald-500', barWidth: 'w-full' };
+    default:
+      return { score: 0, text: 'Too Weak', color: 'text-red-500', barColor: 'bg-red-500', barWidth: 'w-1/12' };
+  }
+};
 
 export default function Login() {
   const [mode, setMode] = useState<AuthMode>('selection');
@@ -52,6 +80,51 @@ export default function Login() {
       return () => clearInterval(interval);
     }
   }, [lockoutUntil]);
+
+  const getFriendlyErrorMessage = (err: any): string => {
+    if (!err) return 'Authentication failed. Please try again.';
+    const errMsg = err.message || String(err);
+    const lowercaseMsg = errMsg.toLowerCase();
+    
+    if (
+      err.code === 'permission-denied' || 
+      lowercaseMsg.includes('permission') || 
+      lowercaseMsg.includes('insufficient')
+    ) {
+      return `🔒 Firestore Database Rules Adjustment Required:
+The app encountered a "Missing or insufficient permissions" error when reading or writing to your Firestore database.
+
+How to fix this in 3 easy steps:
+1. Go to your Firebase Console (https://console.firebase.google.com).
+2. Click on "Firestore Database" in the left menu, and navigate to the "Rules" tab.
+3. Replace the existing rules with the open access rules below, and click "Publish":
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+
+Note: If you are using a named/custom database ID (other than default), make sure security rules are applied to that database. Rules take up to 2 minutes to propagate globally.`;
+    }
+
+    if (err.code === 'auth/operation-not-allowed' || lowercaseMsg.includes('auth/operation-not-allowed')) {
+      return 'Email & Password Sign-in Provider is not enabled in your Google/Firebase Console! Please go to Firebase Console -> Authentication -> Sign-in method, then enable and save the "Email/Password" provider.';
+    }
+    if (err.code === 'auth/invalid-credential') {
+      return 'Invalid email or password. If you had an account previously, please sign up again as this is a new Firebase project.';
+    }
+    if (err.code === 'auth/user-not-found') {
+      return 'User not found. Please sign up to create a new account.';
+    }
+    if (err.code === 'auth/wrong-password') {
+      return 'Incorrect password. Please try again.';
+    }
+    return errMsg || 'Authentication failed. Please try again.';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,17 +172,13 @@ export default function Login() {
             if (signupErr.code === 'auth/email-already-in-use') {
               setError('Admin account exists but password is incorrect. Please use the correct password.');
             } else {
-              setError(signupErr.message || 'Admin login/signup failed.');
+              setError(getFriendlyErrorMessage(signupErr));
             }
             setIsLoading(false);
             return;
           }
         }
-        let errorMessage = err.message || 'Admin login failed.';
-        if (err.code === 'auth/invalid-credential') {
-          errorMessage = 'Invalid admin credentials. Please check your password.';
-        }
-        setError(errorMessage);
+        setError(getFriendlyErrorMessage(err));
         setIsLoading(false);
         return;
       }
@@ -148,13 +217,13 @@ export default function Login() {
               if (signupErr.code === 'auth/email-already-in-use') {
                 setError('Mini Admin account exists but password is incorrect.');
               } else {
-                setError(signupErr.message || 'Mini Admin login/signup failed.');
+                setError(getFriendlyErrorMessage(signupErr));
               }
               setIsLoading(false);
               return;
             }
           }
-          setError(err.message || 'Mini Admin login failed.');
+          setError(getFriendlyErrorMessage(err));
           setIsLoading(false);
           return;
         }
@@ -169,9 +238,17 @@ export default function Login() {
     // Regular User/Dealer Login/Signup (Real logic)
     try {
       if (isLogin) {
+        // Log in directly first. Once authenticated, we can safely retrieve their profile.
         try {
           await login(email, password);
-          const firestoreUser = await findUserByEmail(email);
+          
+          let firestoreUser = null;
+          try {
+            firestoreUser = await findUserByEmail(email);
+          } catch (dbErr) {
+            console.warn("Could not retrieve user profile after login.", dbErr);
+          }
+          
           if (firestoreUser) {
             if (firestoreUser.isSecurityKeyEnabled) {
               setIsLoading(false);
@@ -180,25 +257,43 @@ export default function Login() {
             event({ action: 'login', category: 'Auth', label: firestoreUser.role });
             navigate(firestoreUser.role === 'admin' || firestoreUser.role === 'mini-admin' ? '/admin' : '/');
           } else {
-            // This case should ideally not happen if auth succeeded but firestore doc is missing
+            // Profile not found yet, but authentication was successful.
+            // (Auth listener in AuthContext will auto-provision profile, so navigating is safe)
+            event({ action: 'login', category: 'Auth', label: 'user' });
             navigate('/');
           }
         } catch (loginErr: any) {
-          // If login fails because user doesn't exist, try to sign them up automatically
-          if (loginErr.code === 'auth/user-not-found' || loginErr.code === 'auth/invalid-credential') {
-            const role = mode === 'dealer' ? 'dealer' : 'user';
-            await signup(email, password, name || (role === 'dealer' ? 'Supreme Dealer' : 'Supreme User'), role as any);
-            event({ action: 'signup', category: 'Auth', label: role });
-            navigate('/');
-            return;
+          console.error("Login attempt failed:", loginErr);
+          const errCode = loginErr.code || '';
+          const errMsg = loginErr.message || '';
+          
+          if (errCode === 'auth/user-not-found' || errMsg.includes('user-not-found')) {
+            setIsLogin(false);
+            setError("No account found with this email. We've directed you to the Sign Up area so you can register!");
+          } else if (errCode === 'auth/wrong-password' || errMsg.includes('wrong-password') || errCode === 'auth/invalid-credential' || errMsg.includes('invalid-credential')) {
+            setError("Incorrect password or credentials. If you do not have an account, please click the Sign Up tab to register.");
+          } else {
+            setError(getFriendlyErrorMessage(loginErr));
           }
-          throw loginErr;
+          setIsLoading(false);
+          return;
         }
       } else {
         const role = mode === 'dealer' ? 'dealer' : 'user';
-        await signup(email, password, name || (role === 'dealer' ? 'Supreme Dealer' : 'Supreme User'), role as any);
-        event({ action: 'signup', category: 'Auth', label: role });
-        navigate('/');
+        try {
+          await signup(email, password, name || (role === 'dealer' ? 'Supreme Dealer' : 'Supreme User'), role as any);
+          event({ action: 'signup', category: 'Auth', label: role });
+          navigate('/');
+        } catch (signupErr: any) {
+          if (signupErr.code === 'auth/email-already-in-use' || (signupErr.message && signupErr.message.includes('auth/email-already-in-use'))) {
+            setIsLogin(true);
+            setError("An account with this email already exists. We've automatically switched you to the Login screen. Please enter your password to login.");
+            setIsLoading(false);
+            return;
+          } else {
+            throw signupErr;
+          }
+        }
       }
 
       if (rememberMe) {
@@ -208,15 +303,7 @@ export default function Login() {
       }
     } catch (err: any) {
       recordFailedAttempt();
-      let errorMessage = err.message || 'Authentication failed. Please try again.';
-      if (err.code === 'auth/invalid-credential') {
-        errorMessage = 'Invalid email or password. If you had an account previously, please sign up again as this is a new Firebase project.';
-      } else if (err.code === 'auth/user-not-found') {
-        errorMessage = 'User not found. Please sign up to create a new account.';
-      } else if (err.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
-      }
-      setError(errorMessage);
+      setError(getFriendlyErrorMessage(err));
       setIsLoading(false);
     }
   };
@@ -377,8 +464,8 @@ export default function Login() {
                 ) : (
                   <>
                     {error && (
-                      <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4" />
+                      <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100 flex items-start gap-2 whitespace-pre-line text-left">
+                        <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                         <span>{error}</span>
                       </div>
                     )}
@@ -421,13 +508,13 @@ export default function Login() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100 flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4" />
+                <div className="p-3 bg-red-50 text-red-600 rounded-xl text-sm font-medium border border-red-100 flex flex-col items-start gap-2 whitespace-pre-line text-left">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
                   {timeLeft !== null && timeLeft > 0 && (
-                    <div className="flex items-center gap-2 text-xs font-mono bg-red-100 px-3 py-1 rounded-full">
+                    <div className="flex items-center gap-2 text-xs font-mono bg-red-100 px-3 py-1 rounded-full self-center">
                       <Clock className="w-3 h-3" />
                       <span>Lockout: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
                     </div>
@@ -502,6 +589,52 @@ export default function Login() {
                         {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                       </button>
                     </div>
+
+                    {/* Premium Password Strength Indicator */}
+                    {!isLogin && password && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="mt-2.5 space-y-2 text-left bg-gray-50/50 p-3 rounded-2xl border border-gray-100"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500 font-medium">Password Strength:</span>
+                          <span className={clsx("font-bold font-mono tracking-tight text-[11px]", getPasswordStrength(password).color)}>
+                            {getPasswordStrength(password).text}
+                          </span>
+                        </div>
+                        {/* Custom animated multi-segment or single-bar progress */}
+                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className={clsx("h-full transition-all duration-300", getPasswordStrength(password).barColor, getPasswordStrength(password).barWidth)}
+                          />
+                        </div>
+                        {/* Requirement Criteria Checklist */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 pt-1.5">
+                          {[
+                            { label: 'At least 8 characters', met: password.length >= 8 },
+                            { label: 'One uppercase letter (A-Z)', met: /[A-Z]/.test(password) },
+                            { label: 'One lowercase letter (a-z)', met: /[a-z]/.test(password) },
+                            { label: 'One number (0-9)', met: /[0-9]/.test(password) },
+                            { label: 'One special character', met: /[^A-Za-z0-9]/.test(password) },
+                          ].map((crit, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5 text-[10px]">
+                              {crit.met ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" strokeWidth={3} />
+                              ) : (
+                                <X className="w-3.5 h-3.5 text-gray-300 shrink-0" strokeWidth={3} />
+                              )}
+                              <span className={clsx(
+                                "transition-colors",
+                                crit.met ? "text-emerald-700 font-semibold" : "text-gray-400"
+                              )}>
+                                {crit.label}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
 
                   {isLogin && (

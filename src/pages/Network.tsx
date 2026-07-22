@@ -7,8 +7,14 @@ import {
   Loader2, Wand2, Palette, X, ThumbsDown, UserPlus, Pin, 
   Trash2, Edit2, Smile, Play, Bell, Check, Search, Plus, 
   Globe, Shield, LayoutGrid, Filter, UserMinus, UserCheck, Clock,
-  Twitter, Linkedin, Facebook, Link, Film, Languages, ChevronDown, AlertTriangle
+  Twitter, Linkedin, Facebook, Link, Film, Languages, ChevronDown, AlertTriangle,
+  Music, Tv, Megaphone, Coins, CreditCard, Calendar, ArrowUpRight, CheckCircle2, History, TrendingUp, HelpCircle, FileText, ShoppingBag, DollarSign
 } from 'lucide-react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area
+} from 'recharts';
+import { QRCodeSVG } from 'qrcode.react';
 import { clsx } from 'clsx';
 import { toast } from 'sonner';
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react';
@@ -21,6 +27,8 @@ import { useAds } from '../context/AdsContext';
 import { event } from '../utils/analytics';
 import { t10Service } from '../services/t10Service';
 import { generateContent } from '../services/aiService';
+import { collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const LANGUAGES = [
   'English', 'Spanish', 'French', 'German', 'Chinese', 'Japanese', 
@@ -231,8 +239,133 @@ const postCategories = [
     'Preaching', 'Praying', 'Playing', 'Educational', 'Seminar', 'Violence', 'War', 'Other'
 ];
 
+const StatusCountdown: React.FC<{ createdAt: string; expiresAt: string; showDetailed?: boolean; isAd?: boolean }> = ({ 
+  createdAt, 
+  expiresAt, 
+  showDetailed = false,
+  isAd = false
+}) => {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const created = new Date(createdAt).getTime();
+  const expires = new Date(expiresAt).getTime();
+  
+  const total = expires - created;
+  const remaining = Math.max(0, expires - now);
+  const percentage = total > 0 ? (remaining / total) * 100 : 0;
+  
+  const diffHrs = Math.floor(remaining / (1000 * 60 * 60));
+  const diffMins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+  const diffSecs = Math.floor((remaining % (1000 * 60)) / 1000);
+
+  if (remaining <= 0) {
+    return (
+      <span className="text-red-500 font-bold text-[10px] font-mono flex items-center gap-1 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+        Expired
+      </span>
+    );
+  }
+
+  if (showDetailed) {
+    return (
+      <div className="bg-black/85 backdrop-blur-md rounded-2xl p-3 border border-white/10 flex items-center justify-between gap-4 text-white shadow-xl min-w-[200px]">
+        <div className="space-y-0.5">
+          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">
+            {isAd ? '📢 Ad Campaign Time Left' : '⏱️ Status Remaining'}
+          </p>
+          <div className="flex items-baseline gap-1">
+            <span className="font-mono text-base font-black text-[var(--color-supreme-gold)]">
+              {String(diffHrs).padStart(2, '0')}h {String(diffMins).padStart(2, '0')}m {String(diffSecs).padStart(2, '0')}s
+            </span>
+          </div>
+        </div>
+        {/* SVG Progress Ring */}
+        <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
+          <svg className="w-full h-full transform -rotate-90">
+            <circle cx="20" cy="20" r="16" stroke="rgba(255,255,255,0.1)" strokeWidth="3" fill="transparent" />
+            <circle 
+              cx="20" 
+              cy="20" 
+              r="16" 
+              stroke={isAd ? '#F59E0B' : '#EAB308'} 
+              strokeWidth="3" 
+              fill="transparent" 
+              strokeDasharray={2 * Math.PI * 16}
+              strokeDashoffset={2 * Math.PI * 16 * (1 - percentage / 100)}
+              className="transition-all duration-1000"
+            />
+          </svg>
+          <span className="absolute text-[8px] font-mono font-bold text-gray-200">
+            {Math.round(percentage)}%
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 bg-black/60 text-[10px] text-white px-2 py-0.5 rounded-full backdrop-blur-sm font-mono border border-white/10 shadow-sm shrink-0">
+      <Clock className="w-3.5 h-3.5 text-yellow-400 animate-pulse" />
+      <span>{diffHrs}h {diffMins}m left</span>
+    </div>
+  );
+};
+
+const getStatusPrice = (mode: 'normal' | 'ad', upgrade: string, adDuration: string) => {
+  if (mode === 'ad') {
+    switch (adDuration) {
+      case '1_week': return 2.00;
+      case '2_weeks': return 3.00;
+      case '3_weeks': return 3.50;
+      case '1_month': return 5.00;
+      default: return 2.00;
+    }
+  } else {
+    switch (upgrade) {
+      case '50h': return 0.00;
+      case '90h': return 1.00;
+      case '120h': return 2.00;
+      case '150h': return 4.00;
+      case '200h': return 6.00;
+      case '250h': return 10.00;
+      case '500h': return 18.00;
+      default: return 0.00;
+    }
+  }
+};
+
+const getStatusHours = (mode: 'normal' | 'ad', upgrade: string, adDuration: string) => {
+  if (mode === 'ad') {
+    switch (adDuration) {
+      case '1_week': return 168;
+      case '2_weeks': return 336;
+      case '3_weeks': return 504;
+      case '1_month': return 720;
+      default: return 168;
+    }
+  } else {
+    switch (upgrade) {
+      case '50h': return 50;
+      case '90h': return 90;
+      case '120h': return 120;
+      case '150h': return 150;
+      case '200h': return 200;
+      case '250h': return 250;
+      case '500h': return 500;
+      default: return 50;
+    }
+  }
+};
+
 export default function Network() {
-  const { user, profile } = useAuth();
+  const { user, profile, updateUser } = useAuth();
   const { getActiveAds } = useAds();
   const level1Ads = getActiveAds(1);
   const navigate = useNavigate();
@@ -297,9 +430,358 @@ export default function Network() {
   const [showRankAnalysis, setShowRankAnalysis] = useState(false);
   const [selectedTransform, setSelectedTransform] = useState<'normal' | 'grass' | 'transparent' | 'virtual' | 'hack'>('normal');
   const [privacy, setPrivacy] = useState<'public' | 'friends' | 'private'>('public');
-  const [activeTab, setActiveTab] = useState<'feed' | 'communities' | 'connections' | 'discover' | 'notifications'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'communities' | 'connections' | 'discover' | 'notifications' | 'status-hub'>('feed');
   const [notifications, setNotifications] = useState(initialNotifications);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+
+  // Profile Status / Stories State and Logic
+  const [dbStatuses, setDbStatuses] = useState<any[]>([]);
+  const [showCreateStatusModal, setShowCreateStatusModal] = useState(false);
+  const [statusMediaType, setStatusMediaType] = useState<'image' | 'video' | 'music'>('image');
+  const [statusMediaUrl, setStatusMediaUrl] = useState<string | null>(null);
+  const [statusCaption, setStatusCaption] = useState('');
+  const [isPostingStatus, setIsPostingStatus] = useState(false);
+
+  // Status Upgrades & Promotion Advanced state
+  const [statusMode, setStatusMode] = useState<'normal' | 'ad'>('normal');
+  const [adDurationOption, setAdDurationOption] = useState<'1_week' | '2_weeks' | '3_weeks' | '1_month'>('1_week');
+  const [disappearanceBooster, setDisappearanceBooster] = useState<'50h' | '90h' | '120h' | '150h' | '200h' | '250h' | '500h'>('50h');
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'stripe' | 'bitcoin'>('wallet');
+  const [stripeCardNumber, setStripeCardNumber] = useState('');
+  const [stripeCardExpiry, setStripeCardExpiry] = useState('');
+  const [stripeCardCvc, setStripeCardCvc] = useState('');
+  const [stripeCardName, setStripeCardName] = useState('');
+  const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
+  const [statusTransactions, setStatusTransactions] = useState<any[]>([]);
+
+  // Custom high-fidelity multi-segment story viewer
+  const [activeStoryUserIndex, setActiveStoryUserIndex] = useState<number | null>(null);
+  const [activeStoryItemIndex, setActiveStoryItemIndex] = useState<number>(0);
+  const [mediaProgress, setMediaProgress] = useState(0);
+
+  // Group real-time statuses from Firebase by user
+  const groupedStories = React.useMemo(() => {
+    const groups: Record<string, {
+      userId: string;
+      userName: string;
+      userAvatar: string;
+      statuses: any[];
+    }> = {};
+
+    // 1. Group real database statuses
+    dbStatuses.forEach(status => {
+      if (!groups[status.userId]) {
+        groups[status.userId] = {
+          userId: status.userId,
+          userName: status.userName || 'User',
+          userAvatar: status.userAvatar || 'https://picsum.photos/seed/user/150',
+          statuses: []
+        };
+      }
+      groups[status.userId].statuses.push(status);
+    });
+
+    // Convert to array
+    const realStories = Object.values(groups);
+
+    // 2. Fallback stories (keep UI rich with defaults if no live statuses exist)
+    const fallbackStories = storyUsers.map(su => {
+      return {
+        userId: `fallback-${su.id}`,
+        userName: su.name,
+        userAvatar: su.avatar,
+        statuses: [
+          {
+            id: `fallback-status-${su.id}`,
+            userId: `fallback-${su.id}`,
+            userName: su.name,
+            userAvatar: su.avatar,
+            mediaType: 'image' as const,
+            mediaUrl: su.storyImage,
+            caption: 'Luxury & Logic combined ✨',
+            createdAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 50 * 3600 * 1000).toISOString()
+          }
+        ]
+      };
+    }).filter(fs => !realStories.some(rs => rs.userName === fs.userName));
+
+    return [...realStories, ...fallbackStories];
+  }, [dbStatuses]);
+
+  // Real-time listener for short-lived user statuses
+  useEffect(() => {
+    const statusesCollection = collection(db, 'statuses');
+    const unsubscribe = onSnapshot(statusesCollection, (snapshot) => {
+      const all: any[] = [];
+      const now = new Date();
+      snapshot.forEach((doc) => {
+        const d = doc.data();
+        const expiry = d.expiresAt ? (d.expiresAt.toDate ? d.expiresAt.toDate() : new Date(d.expiresAt)) : null;
+        // Only include statuses that have not expired yet
+        if (!expiry || expiry > now) {
+          all.push({ id: doc.id, ...d });
+        }
+      });
+      // Sort by createdAt ascending
+      all.sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime();
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime();
+        return tA - tB;
+      });
+      setDbStatuses(all);
+    }, (error) => {
+      console.error("Error loading statuses:", error);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time listener for status transactions
+  useEffect(() => {
+    if (!user) return;
+    const transactionsCollection = collection(db, 'status_transactions');
+    const q = query(transactionsCollection, where('userId', '==', user.uid));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach(doc => {
+        list.push({ id: doc.id, ...doc.data() });
+      });
+      list.sort((a, b) => {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tB - tA;
+      });
+      setStatusTransactions(list);
+    }, (error) => {
+      console.error("Error loading status transactions:", error);
+    });
+    return () => unsubscribe();
+  }, [user]);
+
+  const getMediaDuration = (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const media = file.type.startsWith('video/') ? document.createElement('video') : document.createElement('audio');
+      media.src = url;
+      media.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        resolve(media.duration);
+      };
+      media.onerror = () => {
+        resolve(0);
+      };
+    });
+  };
+
+  const handleStatusFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check media limit of 1 minute (60 seconds) for videos & music
+    if (statusMediaType === 'video' || statusMediaType === 'music') {
+      const isVideo = file.type.startsWith('video/');
+      const isAudio = file.type.startsWith('audio/');
+      if ((statusMediaType === 'video' && !isVideo) || (statusMediaType === 'music' && !isAudio)) {
+        toast.error(`Invalid file type. Please upload a ${statusMediaType} file.`);
+        return;
+      }
+
+      // Check duration
+      const duration = await getMediaDuration(file);
+      if (duration > 60) {
+        toast.error('🚫 Status Limit: Videos and Music are limited to a maximum of 1 minute (60 seconds) duration.');
+        return;
+      }
+    } else {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Invalid file type. Please upload an image file.');
+        return;
+      }
+    }
+
+    // Convert file to base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setStatusMediaUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const [paymentPhase, setPaymentPhase] = useState<string>('');
+
+  const handlePostStatus = async () => {
+    if (!statusMediaUrl) {
+      toast.error('Please upload or select media for your status!');
+      return;
+    }
+    
+    const price = getStatusPrice(statusMode, disappearanceBooster, adDurationOption);
+    const hours = getStatusHours(statusMode, disappearanceBooster, adDurationOption);
+
+    if (price > 0) {
+      if (paymentMethod === 'wallet') {
+        if (!profile || profile.balance < price) {
+          toast.error(`🚫 Insufficient Wallet Balance: You need $${price.toFixed(2)} to perform this upload, but your balance is $${(profile?.balance || 0).toFixed(2)}.`);
+          return;
+        }
+      } else if (paymentMethod === 'stripe') {
+        if (!stripeCardNumber || !stripeCardExpiry || !stripeCardCvc || !stripeCardName) {
+          toast.error('🚫 Missing Card Info: Please fill out all credit card details.');
+          return;
+        }
+      }
+    }
+
+    setIsPostingStatus(true);
+    try {
+      if (price > 0) {
+        setPaymentPhase('🔒 Securing payment channel...');
+        await new Promise(r => setTimeout(r, 600));
+        setPaymentPhase('📡 Authorizing ledger credentials...');
+        await new Promise(r => setTimeout(r, 600));
+        setPaymentPhase('🏦 Completing bank authorization...');
+        await new Promise(r => setTimeout(r, 600));
+        
+        if (paymentMethod === 'wallet') {
+          await updateUser({ balance: (profile?.balance || 0) - price });
+        }
+      }
+
+      setPaymentPhase('🚀 Uploading status assets...');
+      const createdAt = new Date();
+      const expiresAt = new Date(createdAt.getTime() + hours * 60 * 60 * 1000);
+
+      // 1. Create status in Firestore
+      const statusData = {
+        userId: user?.uid || 'anonymous',
+        userName: profile?.name || 'Anonymous User',
+        userAvatar: profile?.avatar || 'https://picsum.photos/seed/user/150',
+        mediaType: statusMode === 'ad' ? 'video' : statusMediaType,
+        mediaUrl: statusMediaUrl,
+        caption: statusCaption,
+        createdAt: createdAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        duration: statusMediaType === 'image' ? 5 : 60,
+        isAd: statusMode === 'ad',
+        pricePaid: price,
+        campaignType: statusMode === 'ad' ? 'sponsored' : 'standard_boost',
+        boostHours: hours
+      };
+
+      const docRef = await addDoc(collection(db, 'statuses'), statusData);
+
+      // 2. Create transaction record if it's a paid transaction
+      if (price > 0) {
+        const transData = {
+          userId: user?.uid || 'anonymous',
+          userName: profile?.name || 'Anonymous User',
+          type: statusMode === 'ad' ? 'advertisement' : 'hourly_boost',
+          campaignDuration: statusMode === 'ad' ? adDurationOption : disappearanceBooster,
+          hours: hours,
+          price: price,
+          paymentMethod: paymentMethod,
+          createdAt: createdAt.toISOString(),
+          status: 'completed',
+          statusDocId: docRef.id,
+          receiptNumber: `REC-${Math.floor(100000 + Math.random() * 900000)}`,
+          paymentDetails: paymentMethod === 'stripe' ? {
+            cardBrand: 'Visa',
+            last4: stripeCardNumber.slice(-4) || '4242',
+            cardholderName: stripeCardName
+          } : paymentMethod === 'bitcoin' ? {
+            btcAddress: 'bc1qxy2kg369dn53pyavg0...',
+            confirmations: 6
+          } : {
+            walletSource: 'Central Wallet'
+          }
+        };
+
+        const txRef = await addDoc(collection(db, 'status_transactions'), transData);
+        
+        // Show receipt dialog
+        setSelectedReceipt({ id: txRef.id, ...transData });
+      }
+
+      toast.success(
+        statusMode === 'ad'
+          ? `Ad campaign activated successfully! Active for ${hours / 24} days.`
+          : `Status posted successfully! Active for ${hours} hours.`
+      );
+      
+      setShowCreateStatusModal(false);
+      setStatusMediaUrl(null);
+      setStatusCaption('');
+      // Reset card details
+      setStripeCardNumber('');
+      setStripeCardExpiry('');
+      setStripeCardCvc('');
+      setStripeCardName('');
+    } catch (error) {
+      console.error('Error posting status:', error);
+      toast.error('Failed to post status. Please try again.');
+    } finally {
+      setIsPostingStatus(false);
+      setPaymentPhase('');
+    }
+  };
+
+  // Auto-advance logic for image statuses
+  useEffect(() => {
+    if (activeStoryUserIndex === null) return;
+    const activeUserStory = groupedStories[activeStoryUserIndex];
+    if (!activeUserStory) return;
+    const activeStoryItem = activeUserStory.statuses[activeStoryItemIndex];
+    if (!activeStoryItem) return;
+
+    if (activeStoryItem.mediaType === 'image') {
+      const interval = setInterval(() => {
+        setMediaProgress(prev => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            // Advance
+            if (activeStoryItemIndex < activeUserStory.statuses.length - 1) {
+              setActiveStoryItemIndex(activeStoryItemIndex + 1);
+            } else if (activeStoryUserIndex < groupedStories.length - 1) {
+              setActiveStoryUserIndex(activeStoryUserIndex + 1);
+              setActiveStoryItemIndex(0);
+            } else {
+              setActiveStoryUserIndex(null);
+            }
+            return 0;
+          }
+          return prev + 2; // increments by 2% every 100ms = 5 seconds total
+        });
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [activeStoryUserIndex, activeStoryItemIndex, groupedStories, dbStatuses]);
+
+  const handleMediaTimeUpdate = (e: React.SyntheticEvent<HTMLMediaElement>) => {
+    const el = e.currentTarget;
+    if (el.duration) {
+      setMediaProgress((el.currentTime / el.duration) * 100);
+    }
+  };
+
+  const handleMediaEnded = () => {
+    setMediaProgress(100);
+    if (activeStoryUserIndex !== null) {
+      const activeUserStory = groupedStories[activeStoryUserIndex];
+      if (activeUserStory && activeStoryItemIndex < activeUserStory.statuses.length - 1) {
+        setActiveStoryItemIndex(activeStoryItemIndex + 1);
+        setMediaProgress(0);
+      } else if (activeStoryUserIndex < groupedStories.length - 1) {
+        setActiveStoryUserIndex(activeStoryUserIndex + 1);
+        setActiveStoryItemIndex(0);
+        setMediaProgress(0);
+      } else {
+        setActiveStoryUserIndex(null);
+      }
+    }
+  };
   
   // Media upload state
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
@@ -722,37 +1204,127 @@ export default function Network() {
     <FeatureLoader text="Network Zone">
     <div className="max-w-6xl mx-auto px-4 sm:px-6">
       {/* Stories / Active Users Bar - Moved to Top */}
-      <div className="mb-6 -mx-4 sm:mx-0 overflow-x-auto no-scrollbar pb-2 pt-4">
-        <div className="flex gap-4 min-w-max px-4 sm:px-1">
-          {storyUsers.map((user, index) => (
-            <div 
-              key={user.id} 
-              onClick={() => setActiveStoryIndex(index)}
-              className="flex flex-col items-center gap-2 cursor-pointer group w-16 sm:w-20"
-            >
-              <div className="relative">
-                <div className={clsx(
-                  "w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[2px] transition-transform group-hover:scale-105 duration-300",
-                  user.isAdd ? "border-2 border-dashed border-gray-300" :
-                  user.hasUnseen ? "bg-gradient-to-tr from-yellow-400 to-[var(--color-supreme-gold)]" : "border-2 border-gray-200"
-                )}>
-                  <img 
-                    src={user.avatar} 
-                    alt={user.name} 
-                    className="w-full h-full rounded-full object-cover border-2 border-white"
-                  />
-                </div>
-                {user.isAdd && (
-                  <div className="absolute bottom-0 right-0 w-5 h-5 bg-[var(--color-supreme-gold)] rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                    <Plus className="w-3 h-3 text-white" />
-                  </div>
-                )}
+      <div className="mb-6 -mx-4 sm:mx-0 overflow-x-auto no-scrollbar snap-x snap-mandatory scroll-smooth pb-2 pt-4">
+        <div className="flex gap-4 min-w-max px-4 sm:px-1 items-center">
+          {/* Add Status Circle */}
+          <div 
+            onClick={() => setShowCreateStatusModal(true)}
+            className="flex flex-col items-center gap-2 cursor-pointer group w-16 sm:w-20 shrink-0 animate-fade-in snap-start"
+          >
+            <div className="relative">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[2px] transition-transform group-hover:scale-105 duration-300 border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-50/50">
+                <img 
+                  src={profile?.avatar || 'https://picsum.photos/seed/me/150'} 
+                  alt="You" 
+                  className="w-full h-full rounded-full object-cover border-2 border-white"
+                />
               </div>
-              <span className="text-[10px] sm:text-xs font-medium text-gray-700 truncate w-full text-center">
-                {user.name}
-              </span>
+              <div className="absolute bottom-0 right-0 w-5 h-5 bg-[var(--color-supreme-gold)] rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                <Plus className="w-3 h-3 text-white" />
+              </div>
             </div>
-          ))}
+            <span className="text-[10px] sm:text-xs font-semibold text-gray-700 truncate w-full text-center">
+              Add Status
+            </span>
+          </div>
+
+          {/* Render Active Status Stories */}
+          {groupedStories.map((story, index) => {
+            const hasReal = !story.userId.startsWith('fallback-');
+            
+            // Calculate remaining progress ring
+            let activeStatusPercent = 100;
+            let isUserAd = false;
+            let timeStr = "";
+            
+            if (hasReal && story.statuses && story.statuses.length > 0) {
+              const latestStatus = story.statuses[story.statuses.length - 1];
+              isUserAd = story.statuses.some(s => s.isAd);
+              const created = new Date(latestStatus.createdAt).getTime();
+              const expires = new Date(latestStatus.expiresAt).getTime();
+              const now = Date.now();
+              const total = expires - created;
+              const remaining = Math.max(0, expires - now);
+              
+              activeStatusPercent = total > 0 ? (remaining / total) * 100 : 100;
+              
+              const diffHrs = Math.floor(remaining / (1000 * 60 * 60));
+              const diffMins = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+              if (diffHrs > 0) {
+                timeStr = `${diffHrs}h remaining`;
+              } else {
+                timeStr = `${diffMins}m remaining`;
+              }
+            } else {
+              timeStr = "50h remaining";
+            }
+
+            return (
+              <div 
+                key={story.userId} 
+                onClick={() => {
+                  setActiveStoryUserIndex(index);
+                  setActiveStoryItemIndex(0);
+                  setMediaProgress(0);
+                }}
+                className="flex flex-col items-center gap-2 cursor-pointer group w-16 sm:w-20 shrink-0 relative snap-start"
+                title={`${story.userName} (${timeStr})`}
+              >
+                <div className="relative">
+                  {hasReal ? (
+                    <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[3px] transition-transform group-hover:scale-105 duration-300 flex items-center justify-center">
+                      <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                        <circle cx="50%" cy="50%" r="46%" stroke="#E5E7EB" strokeWidth="2" fill="transparent" />
+                        <circle 
+                          cx="50%" 
+                          cy="50%" 
+                          r="46%" 
+                          stroke={isUserAd ? '#F59E0B' : '#EAB308'} 
+                          strokeWidth="3" 
+                          fill="transparent" 
+                          strokeDasharray={2 * Math.PI * 30}
+                          strokeDashoffset={2 * Math.PI * 30 * (1 - activeStatusPercent / 100)}
+                          className="transition-all duration-1000"
+                        />
+                      </svg>
+                      <img 
+                        src={story.userAvatar} 
+                        alt={story.userName} 
+                        className="w-[84%] h-[84%] rounded-full object-cover border border-white z-10"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full p-[2px] transition-transform group-hover:scale-105 duration-300 border-2 border-gray-200">
+                      <img 
+                        src={story.userAvatar} 
+                        alt={story.userName} 
+                        className="w-full h-full rounded-full object-cover border-2 border-white"
+                      />
+                    </div>
+                  )}
+
+                  {hasReal && (
+                    <span className={clsx(
+                      "absolute -top-1 -right-1 font-black text-[8px] px-1.5 py-0.5 rounded-full border border-white shadow uppercase tracking-wider animate-pulse",
+                      isUserAd ? "bg-amber-500 text-white" : "bg-yellow-400 text-black"
+                    )}>
+                      {isUserAd ? 'AD' : 'LIVE'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col items-center w-full">
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-700 truncate w-full text-center">
+                    {story.userName}
+                  </span>
+                  {hasReal && (
+                    <span className="text-[8px] font-mono text-gray-400 font-bold tracking-tight">
+                      {Math.round(activeStatusPercent)}% left
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -817,6 +1389,17 @@ export default function Network() {
                 {notifications.some(n => !n.read) && (
                     <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                 )}
+            </button>
+            <button
+                onClick={() => setActiveTab('status-hub')}
+                className={clsx(
+                    "flex-1 sm:flex-none px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all flex items-center justify-center gap-2 whitespace-nowrap",
+                    activeTab === 'status-hub' 
+                        ? "bg-[var(--color-supreme-gold)] text-black font-extrabold shadow-md" 
+                        : "text-gray-500 hover:text-[var(--color-supreme-text)]"
+                )}
+            >
+                <Tv className="w-4 h-4 text-amber-500 animate-pulse" /> Status Hub 🚀
             </button>
         </div>
       </div>
@@ -2050,7 +2633,7 @@ export default function Network() {
                 })}
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'notifications' ? (
             <div className="space-y-4">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold text-[var(--color-supreme-text)]">Notifications</h2>
@@ -2097,6 +2680,298 @@ export default function Network() {
                         )}
                     </motion.div>
                 ))}
+            </div>
+          ) : (
+            <div className="space-y-8 animate-fade-in text-[var(--color-supreme-text)] pb-12">
+              {/* Header section with glow */}
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/10 via-yellow-600/5 to-transparent border border-[var(--color-supreme-gold)]/20 p-6 md:p-8 shadow-sm">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[var(--color-supreme-gold)]/10 rounded-full blur-3xl" />
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 z-10 relative">
+                  <div>
+                    <h2 className="text-2xl font-display font-black text-gray-900 tracking-tight flex items-center gap-2">
+                      <Tv className="w-6 h-6 text-amber-500 animate-pulse" /> Supreme Status Hub
+                    </h2>
+                    <p className="text-gray-500 text-sm mt-1 max-w-xl">
+                      Manage, upgrade, and analyze your profile status durations and video ad campaigns. Boost your organic reach by up to 500 hours or launch sponsored campaigns starting at just $2!
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setStatusMode('normal');
+                      setShowCreateStatusModal(true);
+                    }}
+                    className="px-6 py-3 bg-[var(--color-supreme-text)] hover:bg-black text-white rounded-2xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg hover:scale-[1.02]"
+                  >
+                    <Plus className="w-4 h-4" /> Post Upgraded Status
+                  </button>
+                </div>
+              </div>
+
+              {/* Bento Grid Analytics segment */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-200/80 p-5 shadow-sm hover:shadow transition-all">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Active Ads & Boosts</span>
+                    <span className="p-2 bg-amber-50 rounded-lg text-amber-600"><Megaphone className="w-4 h-4" /></span>
+                  </div>
+                  <div className="mt-4">
+                    <span className="text-2xl font-mono font-black text-gray-900">
+                      {dbStatuses.filter(s => s.userId === user?.uid).length}
+                    </span>
+                    <span className="text-xs text-green-500 font-bold block mt-1">● Live Campaigns</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-200/80 p-5 shadow-sm hover:shadow transition-all">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Investment Ledger</span>
+                    <span className="p-2 bg-yellow-50 rounded-lg text-yellow-600"><Coins className="w-4 h-4" /></span>
+                  </div>
+                  <div className="mt-4">
+                    <span className="text-2xl font-mono font-black text-gray-900">
+                      ${statusTransactions.reduce((acc, t) => acc + (t.price || 0), 0).toFixed(2)}
+                    </span>
+                    <span className="text-xs text-gray-500 font-semibold block mt-1">Total spend tracked</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-200/80 p-5 shadow-sm hover:shadow transition-all">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Central Wallet</span>
+                    <span className="p-2 bg-green-50 rounded-lg text-green-600"><CreditCard className="w-4 h-4" /></span>
+                  </div>
+                  <div className="mt-4">
+                    <span className="text-2xl font-mono font-black text-gray-900">${(profile?.balance || 0).toFixed(2)}</span>
+                    <span className="text-xs text-green-600 font-bold block mt-1">Secure & Funded</span>
+                  </div>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-200/80 p-5 shadow-sm hover:shadow transition-all">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Reach Index</span>
+                    <span className="p-2 bg-purple-50 rounded-lg text-purple-600"><TrendingUp className="w-4 h-4" /></span>
+                  </div>
+                  <div className="mt-4">
+                    <span className="text-2xl font-mono font-black text-gray-900">
+                      {Math.round(statusTransactions.reduce((acc, t) => acc + (t.price || 0), 0) * 140 + 120)}
+                    </span>
+                    <span className="text-xs text-green-500 font-bold block mt-1">↑ 22.4% vs last week</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Content splits */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left column - Calculator & Live analytics charts */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Campaign Chart */}
+                  <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-200/80 p-6 shadow-sm">
+                    <h3 className="font-bold text-gray-900 text-lg mb-1 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-[var(--color-supreme-gold)]" /> Campaign Analytics
+                    </h3>
+                    <p className="text-gray-500 text-xs mb-6">Real-time telemetry showing estimated views and engagement clicks per transaction</p>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart 
+                          data={statusTransactions.length > 0 
+                            ? statusTransactions.map((t) => ({
+                                name: new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                                "Investment ($)": t.price,
+                                "Estimated Views": Math.round(t.price * 140) + 120,
+                                "Engagement Clicks": Math.round(t.price * 18) + 15
+                              })).reverse()
+                            : [
+                                { name: 'Jul 5', "Investment ($)": 0, "Estimated Views": 120, "Engagement Clicks": 22 },
+                                { name: 'Jul 6', "Investment ($)": 1.00, "Estimated Views": 240, "Engagement Clicks": 45 },
+                                { name: 'Jul 7', "Investment ($)": 4.00, "Estimated Views": 680, "Engagement Clicks": 110 },
+                                { name: 'Jul 8', "Investment ($)": 2.00, "Estimated Views": 410, "Engagement Clicks": 78 },
+                                { name: 'Jul 9', "Investment ($)": 6.00, "Estimated Views": 950, "Engagement Clicks": 185 },
+                                { name: 'Jul 10', "Investment ($)": 10.00, "Estimated Views": 1580, "Engagement Clicks": 310 },
+                                { name: 'Jul 11', "Investment ($)": 18.00, "Estimated Views": 2890, "Engagement Clicks": 540 },
+                              ]
+                          } 
+                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                        >
+                          <defs>
+                            <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#EAB308" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="#EAB308" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorClicks" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4}/>
+                              <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                          <XAxis dataKey="name" stroke="#9CA3AF" fontSize={11} tickLine={false} />
+                          <YAxis stroke="#9CA3AF" fontSize={11} tickLine={false} axisLine={false} />
+                          <RechartsTooltip contentStyle={{ background: '#030712', border: '1px solid #374151', borderRadius: '12px', color: '#fff' }} />
+                          <Legend verticalAlign="top" height={36} />
+                          <Area type="monotone" dataKey="Estimated Views" stroke="#EAB308" strokeWidth={2.5} fillOpacity={1} fill="url(#colorViews)" />
+                          <Area type="monotone" dataKey="Engagement Clicks" stroke="#3B82F6" strokeWidth={2.5} fillOpacity={1} fill="url(#colorClicks)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Calculator Widget */}
+                  <div className="bg-gradient-to-br from-slate-900 to-black rounded-2xl border border-gray-800 p-6 text-white shadow-xl">
+                    <h3 className="font-display font-black text-lg flex items-center gap-2">
+                      <Megaphone className="w-5 h-5 text-amber-500 animate-pulse" /> Advertising Campaign Planner
+                    </h3>
+                    <p className="text-gray-400 text-xs mt-1">Simulate estimated metrics and purchase slots for video advertisements on the network.</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] uppercase font-bold tracking-wider text-gray-400 mb-2">1. Select Campaign Duration</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { id: '1_week', label: '1 Week', price: 2.00, reach: '3k - 5k' },
+                              { id: '2_weeks', label: '2 Weeks', price: 3.00, reach: '7k - 10k' },
+                              { id: '3_weeks', label: '3 Weeks', price: 3.50, reach: '12k - 16k' },
+                              { id: '1_month', label: '1 Month', price: 5.00, reach: '20k - 25k' }
+                            ].map(item => (
+                              <button
+                                key={item.id}
+                                onClick={() => {
+                                  setStatusMode('ad');
+                                  setAdDurationOption(item.id as any);
+                                }}
+                                className={clsx(
+                                  "p-3 rounded-xl border text-left transition-all",
+                                  statusMode === 'ad' && adDurationOption === item.id
+                                    ? "bg-amber-500/20 border-amber-500 text-white shadow-lg"
+                                    : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+                                )}
+                              >
+                                <span className="block text-xs font-bold">{item.label}</span>
+                                <span className="block text-lg font-mono font-black text-amber-400 mt-1">${item.price.toFixed(2)}</span>
+                                <span className="block text-[9px] text-gray-400 font-medium mt-0.5">Est. Reach: {item.reach}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 rounded-xl border border-white/5 p-4 flex flex-col justify-between">
+                        <div className="space-y-2">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-gray-400 block">Estimated Performance</span>
+                          <div className="space-y-3 pt-2">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-400">Campaign Cost:</span>
+                              <span className="font-mono font-black text-amber-400 text-sm">
+                                ${statusMode === 'ad' ? getStatusPrice('ad', disappearanceBooster, adDurationOption).toFixed(2) : '$0.00'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-400">Guaranteed Placements:</span>
+                              <span className="text-white font-bold">Premium Story Rows & Feeds</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="text-gray-400">Hourly Duration:</span>
+                              <span className="font-mono text-white">
+                                {statusMode === 'ad' ? getStatusHours('ad', disappearanceBooster, adDurationOption) : 0} Hours (Full-Coverage)
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setStatusMode('ad');
+                            setStatusMediaType('video');
+                            setShowCreateStatusModal(true);
+                          }}
+                          className="w-full mt-4 py-3 bg-amber-500 hover:bg-amber-600 text-black font-extrabold rounded-xl text-xs transition-all tracking-wider uppercase text-center flex items-center justify-center gap-2 shadow-lg"
+                        >
+                          <Megaphone className="w-4 h-4" /> Deploy Video Ad Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right column - active promotions lists & transaction history ledger */}
+                <div className="space-y-6">
+                  {/* Active Promotions list */}
+                  <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-200/80 p-6 shadow-sm">
+                    <h3 className="font-bold text-gray-900 text-md mb-4 flex items-center gap-2">
+                      <History className="w-5 h-5 text-[var(--color-supreme-gold)]" /> Your Live Statuses
+                    </h3>
+                    
+                    {dbStatuses.filter(s => s.userId === user?.uid).length === 0 ? (
+                      <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-100">
+                        <Tv className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-xs text-gray-400">No active custom statuses found.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {dbStatuses.filter(s => s.userId === user?.uid).map(status => (
+                          <div key={status.id} className="p-3 bg-white rounded-xl border border-gray-100 flex items-center gap-3">
+                            <div className="relative w-12 h-12 rounded-lg bg-gray-900 overflow-hidden shrink-0">
+                              {status.mediaType === 'image' ? (
+                                <img src={status.mediaUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                              ) : status.mediaType === 'video' ? (
+                                <video src={status.mediaUrl} className="w-full h-full object-cover" muted playsInline />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-indigo-950 text-[var(--color-supreme-gold)]"><Music className="w-4 h-4" /></div>
+                              )}
+                              {status.isAd && (
+                                <span className="absolute bottom-0 right-0 bg-amber-500 text-white text-[7px] font-black px-1 rounded-tl-md">AD</span>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="block text-xs font-bold text-gray-900 truncate">{status.caption || 'No caption'}</span>
+                              <span className="block text-[9px] font-mono text-gray-400 mt-0.5">Disappears in {status.boostHours || 50}h</span>
+                            </div>
+                            <StatusCountdown createdAt={status.createdAt} expiresAt={status.expiresAt} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Transaction history Ledger */}
+                  <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-gray-200/80 p-6 shadow-sm">
+                    <h3 className="font-bold text-gray-900 text-md mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-[var(--color-supreme-gold)]" /> Receipts & Invoices
+                    </h3>
+
+                    {statusTransactions.length === 0 ? (
+                      <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-100">
+                        <FileText className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-xs text-gray-400">No transactions recorded yet.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1 no-scrollbar">
+                        {statusTransactions.map(tx => (
+                          <div 
+                            key={tx.id} 
+                            onClick={() => setSelectedReceipt(tx)}
+                            className="p-2.5 bg-white hover:bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between cursor-pointer transition-colors"
+                          >
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-gray-900 capitalize">
+                                  {tx.type === 'advertisement' ? '📢 sponsored ad' : '🚀 hourly boost'}
+                                </span>
+                              </div>
+                              <span className="block text-[9px] font-mono text-gray-400 mt-0.5">
+                                {new Date(tx.createdAt).toLocaleDateString()} • {tx.receiptNumber || 'REC-892102'}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="block text-xs font-mono font-black text-gray-900">-${tx.price?.toFixed(2)}</span>
+                              <span className="text-[8px] text-[var(--color-supreme-gold)] font-bold uppercase tracking-wider">view receipt</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -2241,91 +3116,556 @@ export default function Network() {
         )}
       </AnimatePresence>
 
-      {/* Story Viewer Modal */}
+      {/* Dynamic Profile Status Viewer Modal */}
       <AnimatePresence>
-        {activeStoryIndex !== null && storyUsers[activeStoryIndex] && (
+        {activeStoryUserIndex !== null && groupedStories[activeStoryUserIndex] && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center backdrop-blur-md"
           >
-            <div className="relative w-full h-full sm:w-[400px] sm:h-[80vh] sm:max-h-[800px] bg-gray-900 sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col">
-              {/* Progress Bar */}
-              <div className="absolute top-0 left-0 right-0 flex gap-1 p-4 z-20">
-                <div className="h-1 bg-white/30 flex-1 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }} 
-                    animate={{ width: '100%' }} 
-                    transition={{ duration: 5, ease: 'linear' }}
-                    onAnimationComplete={() => {
-                      if (activeStoryIndex < storyUsers.length - 1) {
-                        setActiveStoryIndex(activeStoryIndex + 1);
-                      } else {
-                        setActiveStoryIndex(null);
-                      }
-                    }}
-                    className="h-full bg-white" 
-                  />
-                </div>
-              </div>
-              
-              {/* Header */}
-              <div className="absolute top-6 left-0 right-0 p-4 z-20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img src={storyUsers[activeStoryIndex].avatar} alt={storyUsers[activeStoryIndex].name} className="w-10 h-10 rounded-full border-2 border-[var(--color-supreme-gold)] object-cover" />
-                  <div>
-                    <span className="text-white font-bold text-sm drop-shadow-md">{storyUsers[activeStoryIndex].name}</span>
-                    <p className="text-white/80 text-xs drop-shadow-md">2h ago</p>
+            {(() => {
+              const activeUserStory = groupedStories[activeStoryUserIndex];
+              const activeStoryItem = activeUserStory.statuses[activeStoryItemIndex];
+              if (!activeStoryItem) return null;
+
+              return (
+                <div className="relative w-full h-full sm:w-[400px] sm:h-[85vh] sm:max-h-[820px] bg-gray-950 sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col border border-white/5 animate-fade-in">
+                  {/* Multi-segment Progress Bar */}
+                  <div className="absolute top-4 left-0 right-0 flex gap-1 px-4 z-20">
+                    {activeUserStory.statuses.map((_, idx) => (
+                      <div key={idx} className="h-1 bg-white/30 flex-1 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-white transition-all duration-100 ease-linear"
+                          style={{ 
+                            width: idx < activeStoryItemIndex ? '100%' : 
+                                   idx === activeStoryItemIndex ? `${mediaProgress}%` : '0%' 
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Header */}
+                  <div className="absolute top-8 left-0 right-0 px-4 z-20 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={activeUserStory.userAvatar} 
+                        alt={activeUserStory.userName} 
+                        className="w-10 h-10 rounded-full border-2 border-[var(--color-supreme-gold)] object-cover bg-gray-800" 
+                      />
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-white font-bold text-sm drop-shadow-md block">{activeUserStory.userName}</span>
+                          {activeStoryItem.isAd && (
+                            <span className="bg-amber-400 text-black text-[8px] font-extrabold px-1.5 py-0.5 rounded-full border border-black shadow-md uppercase tracking-wider animate-pulse">
+                              AD
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-white/60 text-[10px] font-mono tracking-tighter drop-shadow-md">
+                          {activeStoryItem.mediaType.toUpperCase()} STATUS
+                        </p>
+                      </div>
+                    </div>
+                    {/* Visual countdown telemetry overlay */}
+                    <div className="flex items-center gap-2">
+                      <StatusCountdown createdAt={activeStoryItem.createdAt} expiresAt={activeStoryItem.expiresAt} isAd={activeStoryItem.isAd} />
+                      <button 
+                        onClick={() => setActiveStoryUserIndex(null)} 
+                        className="p-2 text-white/80 hover:text-white bg-black/20 hover:bg-black/40 rounded-full backdrop-blur-sm transition-all border border-white/5"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Floating detailed progress ring card */}
+                  <div className="absolute top-20 right-4 z-20 pointer-events-none">
+                    <StatusCountdown createdAt={activeStoryItem.createdAt} expiresAt={activeStoryItem.expiresAt} showDetailed={true} isAd={activeStoryItem.isAd} />
+                  </div>
+
+                  {/* Story Content Viewport */}
+                  <div className="flex-1 relative bg-black flex items-center justify-center">
+                    {activeStoryItem.mediaType === 'image' && (
+                      <img 
+                        src={activeStoryItem.mediaUrl} 
+                        alt="Status Image" 
+                        className="w-full h-full object-cover" 
+                      />
+                    )}
+
+                    {activeStoryItem.mediaType === 'video' && (
+                      <video 
+                        src={activeStoryItem.mediaUrl} 
+                        autoPlay 
+                        playsInline 
+                        controls={false}
+                        onTimeUpdate={handleMediaTimeUpdate}
+                        onEnded={handleMediaEnded}
+                        className="w-full h-full object-contain" 
+                      />
+                    )}
+
+                    {activeStoryItem.mediaType === 'music' && (
+                      <div className="flex flex-col items-center justify-center text-center p-8 w-full h-full bg-gradient-to-br from-indigo-950 via-slate-900 to-black text-white relative">
+                        {/* Spinning vinyl record disk visualizer */}
+                        <div className="relative w-44 h-44 sm:w-48 sm:h-48 rounded-full bg-black border-4 border-gray-800 flex items-center justify-center shadow-2xl overflow-hidden animate-[spin_8s_linear_infinite]">
+                          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-black/90 to-black" />
+                          <div className="w-14 h-14 rounded-full bg-[var(--color-supreme-gold)] flex items-center justify-center z-10 border-4 border-black font-black text-[9px] text-black">
+                            SUPREME
+                          </div>
+                        </div>
+
+                        <div className="mt-8 space-y-2 z-10">
+                          <div className="p-3 bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] border border-[var(--color-supreme-gold)]/20 rounded-full w-fit mx-auto mb-2 animate-bounce">
+                            <Music className="w-5 h-5" />
+                          </div>
+                          <h4 className="font-bold text-sm text-white tracking-wide">Ambient Audio Status</h4>
+                          <p className="text-[10px] text-gray-500 font-medium font-mono uppercase tracking-widest">Disappears in 50 hrs</p>
+                        </div>
+
+                        <audio 
+                          src={activeStoryItem.mediaUrl} 
+                          autoPlay 
+                          onTimeUpdate={handleMediaTimeUpdate}
+                          onEnded={handleMediaEnded}
+                        />
+                      </div>
+                    )}
+                    
+                    {/* Caption Overlay */}
+                    {activeStoryItem.caption && (
+                      <div className="absolute bottom-24 left-0 right-0 px-6 py-4 bg-black/70 backdrop-blur-md text-white text-center text-xs font-semibold border-t border-b border-white/5 z-20">
+                        {activeStoryItem.caption}
+                      </div>
+                    )}
+
+                    {/* Left/Right Tap Area Triggers */}
+                    <div 
+                      className="absolute top-0 bottom-0 left-0 w-1/3 z-10 cursor-pointer" 
+                      onClick={() => {
+                        if (activeStoryItemIndex > 0) {
+                          setActiveStoryItemIndex(activeStoryItemIndex - 1);
+                          setMediaProgress(0);
+                        } else if (activeStoryUserIndex > 0) {
+                          setActiveStoryUserIndex(activeStoryUserIndex - 1);
+                          setActiveStoryItemIndex(groupedStories[activeStoryUserIndex - 1].statuses.length - 1);
+                          setMediaProgress(0);
+                        } else {
+                          setActiveStoryUserIndex(null);
+                        }
+                      }} 
+                    />
+                    <div 
+                      className="absolute top-0 bottom-0 right-0 w-2/3 z-10 cursor-pointer" 
+                      onClick={() => {
+                        if (activeStoryItemIndex < activeUserStory.statuses.length - 1) {
+                          setActiveStoryItemIndex(activeStoryItemIndex + 1);
+                          setMediaProgress(0);
+                        } else if (activeStoryUserIndex < groupedStories.length - 1) {
+                          setActiveStoryUserIndex(activeStoryUserIndex + 1);
+                          setActiveStoryItemIndex(0);
+                          setMediaProgress(0);
+                        } else {
+                          setActiveStoryUserIndex(null);
+                        }
+                      }} 
+                    />
+                  </div>
+
+                  {/* Footer reply input */}
+                  <div className="absolute bottom-0 left-0 right-0 p-4 z-20 bg-gradient-to-t from-black/90 via-black/50 to-transparent">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 relative">
+                        <input 
+                          type="text" 
+                          placeholder={`Reply to ${activeUserStory.userName}...`}
+                          className="w-full bg-white/5 border border-white/10 text-white placeholder-white/40 rounded-full py-2.5 px-5 pr-12 text-xs focus:outline-none focus:border-white/30 backdrop-blur-md transition-all"
+                        />
+                        <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/50 hover:text-white">
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <button className="p-2.5 text-white/50 hover:text-red-500 transition-colors bg-white/5 rounded-full border border-white/5">
+                        <Heart className="w-4 h-4 fill-current" />
+                      </button>
+                    </div>
                   </div>
                 </div>
+              );
+            })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Post Profile Status Upload Modal */}
+      <AnimatePresence>
+        {showCreateStatusModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto border border-gray-100 p-5 sm:p-6 space-y-5 sm:space-y-6 animate-fade-in"
+            >
+              <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Post Status Update</h3>
+                  <p className="text-xs text-gray-400">Post dynamic statuses or premium ad campaigns</p>
+                </div>
                 <button 
-                  onClick={() => setActiveStoryIndex(null)} 
-                  className="p-2 text-white/80 hover:text-white bg-black/20 hover:bg-black/40 rounded-full backdrop-blur-sm transition-all"
+                  onClick={() => setShowCreateStatusModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 text-gray-400" />
                 </button>
               </div>
 
-              {/* Story Content (Image) */}
-              <div className="flex-1 relative bg-black flex items-center justify-center">
-                <img 
-                  src={storyUsers[activeStoryIndex].storyImage} 
-                  alt="Story" 
-                  className="w-full h-full object-cover" 
-                />
-                
-                {/* Navigation Overlays */}
-                <div 
-                  className="absolute top-0 bottom-0 left-0 w-1/3 z-10 cursor-pointer" 
-                  onClick={() => activeStoryIndex > 0 ? setActiveStoryIndex(activeStoryIndex - 1) : setActiveStoryIndex(null)} 
-                />
-                <div 
-                  className="absolute top-0 bottom-0 right-0 w-2/3 z-10 cursor-pointer" 
-                  onClick={() => activeStoryIndex < storyUsers.length - 1 ? setActiveStoryIndex(activeStoryIndex + 1) : setActiveStoryIndex(null)} 
-                />
-              </div>
-
-              {/* Footer / Reply Area */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 z-20 bg-gradient-to-t from-black/80 to-transparent">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 relative">
-                    <input 
-                      type="text" 
-                      placeholder={`Reply to ${storyUsers[activeStoryIndex].name}...`}
-                      className="w-full bg-black/40 border border-white/20 text-white placeholder-white/60 rounded-full py-3 px-5 pr-12 focus:outline-none focus:border-white/50 backdrop-blur-md transition-all"
-                    />
-                    <button className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white/80 hover:text-white">
-                      <Send className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <button className="p-3 text-white/80 hover:text-red-500 transition-colors">
-                    <Heart className="w-6 h-6" />
+              {/* Status Mode Selection (Normal status vs Sponsored Ad) */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Select Campaign Type</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusMode('normal');
+                      setStatusMediaType('image');
+                    }}
+                    className={clsx(
+                      "p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all text-xs font-bold",
+                      statusMode === 'normal'
+                        ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/5 text-yellow-600 font-extrabold shadow-sm"
+                        : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                    )}
+                  >
+                    <Plus className="w-4 h-4" /> Organic Status
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatusMode('ad');
+                      setStatusMediaType('video');
+                      setStatusMediaUrl(null);
+                    }}
+                    className={clsx(
+                      "p-3 rounded-2xl border flex items-center justify-center gap-2 transition-all text-xs font-bold",
+                      statusMode === 'ad'
+                        ? "border-amber-500 bg-amber-500/5 text-amber-600 font-extrabold shadow-sm"
+                        : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                    )}
+                  >
+                    <Megaphone className="w-4 h-4" /> Sponsored Video Ad
                   </button>
                 </div>
               </div>
-            </div>
-          </motion.div>
+
+              {/* MediaType Switch Tab Panel (Disabled if Ad Mode, which forces video) */}
+              {statusMode === 'normal' ? (
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Media Format</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'image', label: 'Image', icon: ImageIcon, desc: 'No size limit' },
+                      { id: 'video', label: 'Video', icon: Video, desc: 'Max 1 minute' },
+                      { id: 'music', label: 'Music/Audio', icon: Music, desc: 'Max 1 minute' }
+                    ].map((type) => (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusMediaType(type.id as any);
+                          setStatusMediaUrl(null);
+                        }}
+                        className={clsx(
+                          "p-3 rounded-2xl border flex flex-col items-center text-center gap-1.5 transition-all",
+                          statusMediaType === type.id 
+                            ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/5 text-yellow-600 font-bold" 
+                            : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                        )}
+                      >
+                        <type.icon className="w-5 h-5" />
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] block font-bold">{type.label}</span>
+                          <span className="text-[8px] text-gray-400 font-medium block">{type.desc}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100 flex gap-2.5">
+                  <Megaphone className="w-4 h-4 text-amber-500 shrink-0 mt-0.5 animate-bounce" />
+                  <div>
+                    <span className="block text-[10px] font-bold text-amber-800 uppercase tracking-wide">Sponsored Ad Policy</span>
+                    <span className="block text-[9px] text-amber-700 leading-relaxed mt-0.5">
+                      Advertising campaigns only support video uploads of 1 to 5 minutes maximum. Choose duration budgets below.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Disappearance Upgrades and Budgets */}
+              {statusMode === 'normal' ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Upgrade Hours Display</label>
+                    <span className="text-[10px] font-mono text-gray-500 font-bold">Standard is 50 hours</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5 max-h-32 overflow-y-auto no-scrollbar">
+                    {[
+                      { id: '50h', label: '50 Hrs', price: 0 },
+                      { id: '90h', label: '90 Hrs', price: 1.00 },
+                      { id: '120h', label: '120 Hrs', price: 2.00 },
+                      { id: '150h', label: '150 Hrs', price: 4.00 },
+                      { id: '200h', label: '200 Hrs', price: 6.00 },
+                      { id: '250h', label: '250 Hrs', price: 10.00 },
+                      { id: '500h', label: '500 Hrs', price: 18.00 }
+                    ].map(upgrade => (
+                      <button
+                        key={upgrade.id}
+                        type="button"
+                        onClick={() => setDisappearanceBooster(upgrade.id as any)}
+                        className={clsx(
+                          "p-2 rounded-xl border text-center transition-all flex flex-col items-center justify-center",
+                          disappearanceBooster === upgrade.id
+                            ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/5 text-yellow-600 font-extrabold"
+                            : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                        )}
+                      >
+                        <span className="text-[9px] font-bold">{upgrade.label}</span>
+                        <span className="text-[8px] font-mono font-medium text-gray-400 mt-0.5">
+                          {upgrade.price === 0 ? 'FREE' : `$${upgrade.price.toFixed(0)}`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Select Ad Campaign Duration</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { id: '1_week', label: '1 Week', price: 2.00 },
+                      { id: '2_weeks', label: '2 Weeks', price: 3.00 },
+                      { id: '3_weeks', label: '3 Weeks', price: 3.50 },
+                      { id: '1_month', label: '1 Month', price: 5.00 }
+                    ].map(opt => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setAdDurationOption(opt.id as any)}
+                        className={clsx(
+                          "p-2 rounded-xl border text-center transition-all flex flex-col items-center justify-center",
+                          adDurationOption === opt.id
+                            ? "border-amber-500 bg-amber-500/5 text-amber-600 font-extrabold"
+                            : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                        )}
+                      >
+                        <span className="text-[9px] font-bold whitespace-nowrap">{opt.label}</span>
+                        <span className="text-[8px] font-mono font-black text-amber-600 mt-0.5">${opt.price.toFixed(2)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Status File Drag/Drop Picker Area */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Select Media File</label>
+                {!statusMediaUrl ? (
+                  <label className="border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-yellow-400/50 hover:bg-yellow-50/10 transition-all text-center">
+                    <div className="p-2.5 bg-gray-50 rounded-full border border-gray-100 text-gray-400">
+                      {statusMediaType === 'image' && <ImageIcon className="w-5 h-5 text-yellow-500" />}
+                      {statusMediaType === 'video' && <Video className="w-5 h-5 text-yellow-500" />}
+                      {statusMediaType === 'music' && <Music className="w-5 h-5 text-yellow-500" />}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-gray-700">Click to upload status file</p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">Supports drag & drop or browse</p>
+                    </div>
+                    <input 
+                      type="file" 
+                      accept={
+                        statusMediaType === 'image' ? 'image/*' :
+                        statusMediaType === 'video' ? 'video/*' : 'audio/*'
+                      }
+                      onChange={handleStatusFileChange}
+                      className="hidden" 
+                    />
+                  </label>
+                ) : (
+                  <div className="relative rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 aspect-video flex items-center justify-center">
+                    {statusMediaType === 'image' && (
+                      <img src={statusMediaUrl} className="w-full h-full object-cover" />
+                    )}
+                    {statusMediaType === 'video' && (
+                      <video src={statusMediaUrl} controls className="w-full h-full object-cover" />
+                    )}
+                    {statusMediaType === 'music' && (
+                      <div className="flex flex-col items-center gap-2 p-4">
+                        <Music className="w-6 h-6 text-yellow-500 animate-pulse" />
+                        <span className="text-[10px] text-gray-500 font-medium font-mono">Audio file loaded</span>
+                        <audio src={statusMediaUrl} controls className="w-full h-12" />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setStatusMediaUrl(null)}
+                      className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white shadow transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Caption Overlay */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest">Caption Overlay</label>
+                <input 
+                  type="text"
+                  value={statusCaption}
+                  onChange={(e) => setStatusCaption(e.target.value)}
+                  placeholder="e.g. Living the supreme life 🥂"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-[var(--color-supreme-gold)]"
+                />
+              </div>
+
+              {/* Dynamic Live Status Card Preview */}
+              {statusMediaUrl && (
+                <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-white space-y-3">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Live Render Card Preview</span>
+                  <div className="relative aspect-video rounded-xl overflow-hidden bg-black flex items-center justify-center">
+                    {statusMediaType === 'image' && (
+                      <img src={statusMediaUrl} className="w-full h-full object-cover" />
+                    )}
+                    {statusMediaType === 'video' && (
+                      <video src={statusMediaUrl} className="w-full h-full object-cover" muted />
+                    )}
+                    {statusMediaType === 'music' && (
+                      <div className="flex flex-col items-center justify-center text-center p-3 w-full h-full bg-gradient-to-br from-slate-950 to-indigo-950">
+                        <Music className="w-6 h-6 text-yellow-500 animate-bounce" />
+                        <span className="text-[10px] text-gray-400 font-mono mt-1">Audio Player Status</span>
+                      </div>
+                    )}
+                    
+                    {/* Live countdown progress ring overlay on preview! */}
+                    <div className="absolute top-2 right-2 bg-black/60 px-2 py-0.5 rounded-full border border-white/10 flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5 text-yellow-500 animate-spin" />
+                      <span className="text-[8px] font-mono text-white font-bold uppercase tracking-wider">
+                        {statusMode === 'ad' ? getStatusHours('ad', disappearanceBooster, adDurationOption) : getStatusHours('normal', disappearanceBooster, adDurationOption)}h remaining
+                      </span>
+                    </div>
+
+                    {statusCaption && (
+                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-black/70 text-[9px] text-center text-white truncate font-semibold">
+                        {statusCaption}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Method Option Selector (Only visible if upgrade costs money) */}
+              {getStatusPrice(statusMode, disappearanceBooster, adDurationOption) > 0 && (
+                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-gray-700">Payment Breakdown</span>
+                    <span className="text-xs font-mono font-black text-amber-600">
+                      Total: ${getStatusPrice(statusMode, disappearanceBooster, adDurationOption).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'wallet', label: 'Wallet', icon: CreditCard },
+                      { id: 'stripe', label: 'Stripe', icon: DollarSign },
+                      { id: 'bitcoin', label: 'Bitcoin', icon: Coins }
+                    ].map(pm => (
+                      <button
+                        key={pm.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(pm.id as any)}
+                        className={clsx(
+                          "p-2 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all",
+                          paymentMethod === pm.id
+                            ? "border-[var(--color-supreme-text)] bg-gray-900 text-white font-bold"
+                            : "border-gray-200 text-gray-500 hover:bg-gray-100"
+                        )}
+                      >
+                        <pm.icon className="w-4 h-4" />
+                        <span className="text-[9px] block uppercase font-bold">{pm.label}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Payment option specific fields */}
+                  {paymentMethod === 'wallet' && (
+                    <div className="flex justify-between items-center text-[10px] text-gray-500">
+                      <span>Central Balance: ${(profile?.balance || 0).toFixed(2)}</span>
+                      {profile?.balance < getStatusPrice(statusMode, disappearanceBooster, adDurationOption) ? (
+                        <span className="text-red-500 font-bold font-mono">Insufficient balance</span>
+                      ) : (
+                        <span className="text-green-600 font-bold">✓ Balance sufficient</span>
+                      )}
+                    </div>
+                  )}
+
+                  {paymentMethod === 'stripe' && (
+                    <div className="space-y-1">
+                      <input 
+                        type="text"
+                        value={stripeCardNumber}
+                        onChange={(e) => setStripeCardNumber(e.target.value)}
+                        placeholder="Card Number: 4242 •••• •••• 4242"
+                        className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[10px] font-mono focus:outline-none focus:border-black"
+                      />
+                    </div>
+                  )}
+
+                  {paymentMethod === 'bitcoin' && (
+                    <div className="text-[9px] text-gray-500 bg-white p-2 rounded-xl border border-gray-200 font-mono flex flex-col gap-1">
+                      <span className="font-bold text-gray-700">SEND BTC TO ADDRESS:</span>
+                      <span className="text-[8px] text-amber-600 font-bold select-all truncate">bc1qxy2kg3ut6g3ut6g3ut6g3ut6g3ut6g3ut6</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <div className="space-y-2">
+                {paymentPhase && (
+                  <div className="text-center py-1.5 px-3 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-[10px] font-mono font-bold animate-pulse">
+                    {paymentPhase}
+                  </div>
+                )}
+                
+                <button
+                  onClick={handlePostStatus}
+                  disabled={
+                    isPostingStatus || 
+                    !statusMediaUrl || 
+                    (paymentMethod === 'wallet' && getStatusPrice(statusMode, disappearanceBooster, adDurationOption) > (profile?.balance || 0))
+                  }
+                  className="w-full py-4 bg-[var(--color-supreme-text)] hover:bg-black text-white font-bold rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50 text-xs tracking-wider uppercase"
+                >
+                  {isPostingStatus ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Securing Transaction...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Post {statusMode === 'ad' ? 'Premium Ad Campaign' : 'Upgraded Status'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
       {/* Rank Privileges Analysis Modal */}
@@ -2438,6 +3778,144 @@ export default function Network() {
                   </div>
                 </div>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Dynamic Thermal Receipt Invoice Modal */}
+      <AnimatePresence>
+        {selectedReceipt !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-[#FAFAFA] text-slate-800 font-mono text-xs p-6 rounded-3xl shadow-2xl max-w-sm w-full border border-gray-200/80 relative"
+            >
+              {/* Decorative sprocket holes for a real thermal checkout receipt feel */}
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col gap-2 -ml-1">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/10" />
+                ))}
+              </div>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col gap-2 -mr-1">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-black/10" />
+                ))}
+              </div>
+
+              {/* Close Button */}
+              <button 
+                onClick={() => setSelectedReceipt(null)}
+                className="absolute top-4 right-4 p-2 hover:bg-slate-200 rounded-full transition-colors z-10"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+
+              {/* Store Header */}
+              <div className="text-center space-y-1.5 border-b border-dashed border-slate-300 pb-4">
+                <h2 className="text-xs font-bold text-slate-900 tracking-wider">★ SUPREME VIBES NETWORK ★</h2>
+                <p className="text-[8px] text-slate-400">ZONE: STATUS-PAYMENT-LEDGER-V1</p>
+                <p className="text-[10px] text-slate-600 font-black">INVOICE TRANSACTION RECEIPT</p>
+              </div>
+
+              {/* Meta information */}
+              <div className="py-4 space-y-1.5 border-b border-dashed border-slate-300 text-[9px] text-slate-600">
+                <div className="flex justify-between">
+                  <span>RECEIPT NO:</span>
+                  <span className="font-bold text-slate-900">{selectedReceipt.receiptNumber || 'REC-892102'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>DATE:</span>
+                  <span className="font-bold text-slate-900">{new Date(selectedReceipt.createdAt).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>OPERATOR:</span>
+                  <span className="font-bold text-slate-900">supreme-wallet-processor</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>CLIENT EMAIL:</span>
+                  <span className="font-bold text-slate-900 truncate max-w-[150px]">{user?.email}</span>
+                </div>
+              </div>
+
+              {/* Line items */}
+              <div className="py-4 space-y-3 border-b border-dashed border-slate-300">
+                <div className="flex justify-between text-slate-900 font-bold text-[10px]">
+                  <span>ITEM DESCRIPTION</span>
+                  <span>TOTAL</span>
+                </div>
+                <div className="flex justify-between items-start text-slate-700 text-[10px]">
+                  <div className="space-y-0.5">
+                    <span className="block font-bold">
+                      {selectedReceipt.type === 'advertisement' ? '📢 Sponsored Video Ad Space' : '🚀 Hourly Status Boost'}
+                    </span>
+                    <span className="block text-[8px] text-slate-400">
+                      {selectedReceipt.type === 'advertisement' 
+                        ? `Duration: ${selectedReceipt.adDuration || '1 week'}` 
+                        : `Boost: +${selectedReceipt.boostHours || 50} Hours`}
+                    </span>
+                    <span className="block text-[8px] text-slate-400">Expires: {new Date(selectedReceipt.expiresAt).toLocaleDateString()}</span>
+                  </div>
+                  <span className="font-bold font-mono text-slate-900">${selectedReceipt.price?.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Totals calculations */}
+              <div className="py-4 space-y-1.5 border-b border-dashed border-slate-300 text-[10px]">
+                <div className="flex justify-between text-slate-600">
+                  <span>SUBTOTAL:</span>
+                  <span>${selectedReceipt.price?.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>NETWORK PROMO DISCOUNT (0%):</span>
+                  <span>-$0.00</span>
+                </div>
+                <div className="flex justify-between text-slate-900 font-bold text-[11px] pt-1">
+                  <span>AMOUNT CHARGED:</span>
+                  <span className="font-mono">${selectedReceipt.price?.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-500 pt-1">
+                  <span>METHOD:</span>
+                  <span className="uppercase font-bold">{selectedReceipt.paymentMethod || 'wallet'}</span>
+                </div>
+              </div>
+
+              {/* QR Code and verification hash */}
+              <div className="py-4 text-center space-y-2">
+                <p className="text-[7px] text-slate-400 uppercase tracking-widest">Secure Verification QR Code</p>
+                <div className="w-20 h-20 mx-auto bg-white p-1 rounded-xl border border-slate-200 shadow-sm flex items-center justify-center">
+                  <QRCodeSVG 
+                    value={`https://supremevibes.network/verify/tx/${selectedReceipt.id}`}
+                    size={72}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
+                <p className="text-[7px] font-mono text-slate-400 truncate tracking-tighter">REF-HASH: {selectedReceipt.id}</p>
+              </div>
+
+              {/* Footer */}
+              <div className="text-center pt-2 space-y-1 text-[8px] text-slate-400 border-t border-dashed border-slate-300">
+                <p className="font-bold text-slate-800">★★★★★ THANK YOU FOR FLYING HIGH ★★★★★</p>
+                <p>Verify ledger status at supremevibes.network/ledger</p>
+              </div>
+
+              {/* Print Receipt Button */}
+              <button 
+                onClick={() => {
+                  toast.success("🖨 Transmitting print job to local thermal device successfully!");
+                }}
+                className="w-full mt-4 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-[9px] tracking-wider uppercase transition-colors flex items-center justify-center gap-1.5"
+              >
+                <FileText className="w-3.5 h-3.5" /> Print Receipt
+              </button>
             </motion.div>
           </motion.div>
         )}

@@ -151,7 +151,19 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     setShouldShowVibeAd(false);
   };
 
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   useEffect(() => {
+    return auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setAds([]);
+      return;
+    }
     const q = query(collection(db, 'ads'), limit(1000));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const adsData: Ad[] = [];
@@ -171,7 +183,7 @@ export function AdsProvider({ children }: { children: React.ReactNode }) {
     }
 
     return () => unsubscribe();
-  }, []);
+  }, [currentUser]);
 
   const createAd = async (adData: Omit<Ad, 'id' | 'createdAt' | 'expiresAt' | 'clicks' | 'revenue'>) => {
     const createdAt = Timestamp.now();

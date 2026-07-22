@@ -182,7 +182,14 @@ export default function NotificationCenter() {
                 >
                   <Check className="w-3 h-3" /> Mark all read
                 </button>
-                <button className="p-1 hover:bg-gray-200 rounded-full text-gray-400">
+                <button 
+                  onClick={() => {
+                    setIsOpen(false);
+                    navigate('/settings');
+                  }}
+                  className="p-1 hover:bg-gray-200 rounded-full text-gray-400"
+                  title="App Settings"
+                >
                   <Settings className="w-4 h-4" />
                 </button>
               </div>

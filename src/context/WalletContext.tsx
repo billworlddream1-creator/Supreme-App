@@ -114,6 +114,18 @@ export const WITHDRAWAL_METHODS = {
     min: 10,
     processingTime: '10 - 60 Minutes',
     icon: 'Bitcoin'
+  },
+  usdt: {
+    label: 'USDT Stablecoin',
+    min: 10,
+    processingTime: '5 - 15 Minutes',
+    icon: 'Coins'
+  },
+  bank: {
+    label: 'Bank Wire / SEPA',
+    min: 100,
+    processingTime: '1 - 2 Business Days',
+    icon: 'Building'
   }
 };
 
@@ -138,7 +150,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { playPaymentRequest } = useSound();
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !user.uid) {
       setBalance(0);
       setTransactions([]);
       setAccountNumber(null);
@@ -173,7 +185,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const q = query(
       collection(db, 'transactions'),
       where('userId', '==', user.uid),
-      orderBy('date', 'desc'),
       limit(100)
     );
 
@@ -181,6 +192,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const txs: WalletTransaction[] = [];
       snapshot.forEach((doc) => {
         txs.push({ id: doc.id, ...doc.data() } as WalletTransaction);
+      });
+      // Sort in memory by date descending
+      txs.sort((a, b) => {
+        const dateA = a.date instanceof Timestamp ? a.date.toDate().getTime() : new Date(a.date).getTime();
+        const dateB = b.date instanceof Timestamp ? b.date.toDate().getTime() : new Date(b.date).getTime();
+        return dateB - dateA;
       });
       setTransactions(txs);
     }, (error) => {
@@ -262,7 +279,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const withdraw = async (amount: number, category: string = 'General Expense', method: string = 'Bank Account') => {
     if (!user || balance < amount) return;
 
-    const methodKey = method.toLowerCase() as keyof typeof WITHDRAWAL_METHODS;
+    const lowerMethod = method.toLowerCase();
+    const methodKey = (lowerMethod.includes('usdt') ? 'usdt' :
+                       lowerMethod.includes('bank') || lowerMethod.includes('wire') || lowerMethod.includes('sepa') ? 'bank' :
+                       lowerMethod.includes('paypal') ? 'paypal' :
+                       lowerMethod.includes('bitcoin') || lowerMethod.includes('crypto') ? 'crypto' :
+                       'stripe') as keyof typeof WITHDRAWAL_METHODS;
     const minAmount = WITHDRAWAL_METHODS[methodKey]?.min || MIN_EXTERNAL_TRANSFER;
 
     if (amount < minAmount) {

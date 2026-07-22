@@ -721,10 +721,12 @@ export default function Home() {
 
       // Find current position
       (['header', 'main', 'side'] as SectionId[]).forEach(section => {
-        const idx = newLayout[section].indexOf(id);
-        if (idx !== -1) {
-          currentSection = section;
-          currentIndex = idx;
+        if (newLayout[section] && Array.isArray(newLayout[section])) {
+          const idx = newLayout[section].indexOf(id);
+          if (idx !== -1) {
+            currentSection = section;
+            currentIndex = idx;
+          }
         }
       });
 
@@ -869,7 +871,7 @@ export default function Home() {
         <div className="w-full md:w-auto text-center md:text-left">
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold text-[var(--color-supreme-text)] tracking-tight">
             {user ? (
-              <>Welcome back, <span className="text-[var(--color-supreme-gold)]">{user.name.split(' ')[0]}</span></>
+              <>Welcome back, <span className="text-[var(--color-supreme-gold)]">{user.name || 'User'}</span></>
             ) : (
               <>Welcome to <span className="text-[var(--color-supreme-gold)]">Supreme</span></>
             )}

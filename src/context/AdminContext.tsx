@@ -94,6 +94,8 @@ export interface PlatformSettings {
   stripePlatformAccount: string;
   paypalBusinessEmail: string;
   bitcoinWalletAddress: string;
+  usdtWalletAddress?: string;
+  bankWireCoordinates?: string;
   platformFeePercentage: number;
   minimumPayoutAmount: number;
   maintenanceMode: boolean;
@@ -145,7 +147,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<PlatformSettings>({
     stripePlatformAccount: 'billworlddream1@gmail.com',
     paypalBusinessEmail: 'billworlddream1@gmail.com',
-    bitcoinWalletAddress: '',
+    bitcoinWalletAddress: '151nvA1dL4FhKzzKye5o48quApNFnXS3Qm',
+    usdtWalletAddress: 'TYfVfKzQo3qF2p5fKk8fKk8fKk8fKk8fKk',
+    bankWireCoordinates: 'GB49 APEX 6016 1331 4452 90',
     platformFeePercentage: 15,
     minimumPayoutAmount: 50,
     maintenanceMode: false,
@@ -247,7 +251,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     // Settings Listener
     const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'platform'), (snapshot) => {
       if (snapshot.exists()) {
-        setSettings(snapshot.data() as PlatformSettings);
+        const data = snapshot.data() as PlatformSettings;
+        setSettings({
+          ...data,
+          bitcoinWalletAddress: data.bitcoinWalletAddress || '151nvA1dL4FhKzzKye5o48quApNFnXS3Qm',
+          usdtWalletAddress: data.usdtWalletAddress || 'TYfVfKzQo3qF2p5fKk8fKk8fKk8fKk8fKk',
+          bankWireCoordinates: data.bankWireCoordinates || 'GB49 APEX 6016 1331 4452 90'
+        });
       }
     }, (error) => {
       if (error.code !== 'permission-denied') {

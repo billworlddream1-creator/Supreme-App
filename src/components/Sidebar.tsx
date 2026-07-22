@@ -33,7 +33,9 @@ import {
   Activity,
   Bitcoin,
   Cpu,
-  FileText
+  FileText,
+  Settings,
+  Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx } from 'clsx';
@@ -48,6 +50,7 @@ interface SidebarProps {
   logout: () => void;
   showProfileMenu: boolean;
   setShowProfileMenu: (show: boolean) => void;
+  onOpenSimulator?: () => void;
 }
 
 interface NavItem {
@@ -67,6 +70,7 @@ const navGroups: NavGroup[] = [
     label: 'Main',
     items: [
       { path: '/', label: 'Dashboard', icon: Crown },
+      { path: '/settings', label: 'App Settings', icon: Settings },
       { path: '/supreme-mode', label: 'Supreme Mode', icon: Sparkles },
       { path: '/supreme-gmt', label: 'Supreme GMT', icon: Satellite, featureId: 'supreme-gmt' },
       { path: '/heart-to-heart', label: 'Heart to Heart', icon: Heart },
@@ -132,7 +136,8 @@ export default function Sidebar({
   user,
   logout,
   showProfileMenu,
-  setShowProfileMenu
+  setShowProfileMenu,
+  onOpenSimulator
 }: SidebarProps) {
   const navigate = useNavigate();
   const { isFeaturePaused } = useFeatureControl();
@@ -282,6 +287,25 @@ export default function Sidebar({
             </div>
           ))}
 
+          {/* Mobile Preview Sandbox Studio banner */}
+          {onOpenSimulator && (
+            <div className="px-4 mt-4">
+              <button 
+                onClick={onOpenSimulator}
+                className={clsx(
+                  "w-full flex items-center justify-center gap-3 py-3 bg-gradient-to-r from-amber-500/10 to-yellow-500/10 hover:from-amber-500/20 hover:to-yellow-500/20 border border-amber-500/25 rounded-2xl transition-all cursor-pointer shadow-xs group",
+                  isDesktopCollapsed ? "px-0" : "px-4"
+                )}
+                title="Open Mobile Sandbox Preview"
+              >
+                <Smartphone className="w-5 h-5 text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
+                {!isDesktopCollapsed && (
+                  <span className="text-xs font-bold text-amber-600 tracking-wide uppercase">Mobile Preview</span>
+                )}
+              </button>
+            </div>
+          )}
+
           {/* Pricing Widget */}
           {!isDesktopCollapsed && (
             <div className="px-4 mt-6">
@@ -335,6 +359,15 @@ export default function Sidebar({
                       className="w-full flex items-center gap-3 px-4 py-3 3xl:px-6 3xl:py-5 4xl:px-10 4xl:py-8 5xl:px-16 5xl:py-12 text-sm 3xl:text-lg 4xl:text-3xl 5xl:text-5xl font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       <User className="w-4 h-4 3xl:w-6 3xl:h-6 4xl:w-10 4xl:h-10 5xl:w-16 5xl:h-16" /> Edit Profile
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        navigate('/settings');
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 3xl:px-6 3xl:py-5 4xl:px-10 4xl:py-8 5xl:px-16 5xl:py-12 text-sm 3xl:text-lg 4xl:text-3xl 5xl:text-5xl font-medium text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100"
+                    >
+                      <Settings className="w-4 h-4 3xl:w-6 3xl:h-6 4xl:w-10 4xl:h-10 5xl:w-16 5xl:h-16" /> App Settings
                     </button>
                     <button 
                       onClick={() => {

@@ -33,8 +33,13 @@ import {
   Zap,
   Edit2,
   X,
-  Printer
+  Printer,
+  Flame,
+  Gift,
+  ShieldAlert,
+  QrCode
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { 
   AreaChart, 
   Area, 
@@ -56,10 +61,12 @@ import { stripeService } from '../services/stripe';
 import { useSearchParams } from 'react-router-dom';
 import { getRankData, RANK_BENEFITS } from '../constants/ranks';
 import { toast } from 'sonner';
+import StreakAnalysisArea from '../components/StreakAnalysisArea';
 import { BOOST_PLANS, BoostPlan } from '../constants/boosts';
 import { collection, query, getDocs, where, limit, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import TopEarners from '../components/TopEarners';
+import GlobalRankings from '../components/GlobalRankings';
 
 const INCOME_CATEGORIES = ['Salary', 'Investment', 'Gift', 'Business', 'Other Income'];
 const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Education', 'Other Expense'];
@@ -111,7 +118,7 @@ export default function Wallet() {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal' | 'crypto'>('stripe');
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'paypal' | 'crypto' | 'usdt' | 'bank'>('stripe');
 
   const [keyTimeLeft, setKeyTimeLeft] = useState<string>('');
 
@@ -119,6 +126,33 @@ export default function Wallet() {
   const [recipient, setRecipient] = useState<{ id: string, name: string, email: string, avatar?: string } | null>(null);
   const [userSearchText, setUserSearchText] = useState('');
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+
+  const getTodayStr = () => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  };
+
+  const getStreakWindowStart = () => {
+    const userId = user?.uid || 'guest';
+    let start = user?.streakWindowStart || localStorage.getItem(`streak_window_start_${userId}`);
+    if (!start) {
+      start = getTodayStr();
+      localStorage.setItem(`streak_window_start_${userId}`, start);
+    }
+    return start;
+  };
+
+  const startStr = getStreakWindowStart();
+  const getDaysElapsed = () => {
+    const start = new Date(startStr);
+    const today = new Date(getTodayStr());
+    const diffTime = today.getTime() - start.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return Math.max(0, diffDays);
+  };
+
+  const daysElapsed = getDaysElapsed();
+  const isStreakWindowExpired = daysElapsed >= 365;
 
   const [activeSection, setActiveSection] = useState<'overview' | 'transactions' | 'leaderboard'>('overview');
   const [trendTab, setTrendTab] = useState<'daily' | 'weekly' | 'monthly'>('daily');
@@ -537,6 +571,16 @@ export default function Wallet() {
         deposit(val, category || 'General Income', 'Bitcoin');
         setAmount('');
         setShowDeposit(false);
+      } else if (paymentMethod === 'usdt') {
+        toast.info(`Initializing secure stablecoin settlement for USDT...`);
+        deposit(val, category || 'General Income', 'USDT');
+        setAmount('');
+        setShowDeposit(false);
+      } else if (paymentMethod === 'bank') {
+        toast.success(`Bank Wire Transfer Initiated! Ref Code: TX-BANK-${user?.uid ? user.uid.substring(0, 6).toUpperCase() : 'SUPREME'}`);
+        deposit(val, category || 'General Income', 'Bank Wire');
+        setAmount('');
+        setShowDeposit(false);
       }
     }
   };
@@ -598,6 +642,22 @@ export default function Wallet() {
         }
         toast.info(`Processing Crypto withdrawal to ${bitcoinAddress}...`);
         withdraw(val, category || 'General Expense', 'Bitcoin');
+        setAmount('');
+        setCategory('');
+        setShowWithdraw(false);
+      } else if (paymentMethod === 'usdt') {
+        if (!bitcoinAddress) {
+          toast.error('Please link your cryptocurrency address in the main wallet screen first to receive USDT.');
+          return;
+        }
+        toast.info(`Processing USDT Stablecoin withdrawal to ${bitcoinAddress}...`);
+        withdraw(val, category || 'General Expense', 'USDT');
+        setAmount('');
+        setCategory('');
+        setShowWithdraw(false);
+      } else if (paymentMethod === 'bank') {
+        toast.info(`Processing Direct Bank Wire / Local Payout transfer...`);
+        withdraw(val, category || 'General Expense', 'Bank Wire');
         setAmount('');
         setCategory('');
         setShowWithdraw(false);
@@ -2208,6 +2268,109 @@ export default function Wallet() {
               {isBoosted && <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl" />}
             </motion.div>
 
+            {/* Daily Streak & Login Rewards Card */}
+            <motion.div 
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", damping: 25, stiffness: 120, delay: 0.15 }}
+              className="p-8 rounded-[2.5rem] bg-gradient-to-br from-[#1c1917] via-[#0a0a0a] to-[#0c0a09] border border-amber-500/20 shadow-xl text-white relative overflow-hidden group"
+            >
+              <div className="relative z-10">
+                {!isStreakWindowExpired ? (
+                  <>
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <h3 className="text-xl font-display font-bold text-white flex items-center gap-2">
+                          <Flame className="w-6 h-6 text-amber-500 animate-pulse" /> Daily Streak
+                        </h3>
+                        <p className="text-gray-500 text-sm mt-1">Earn free Supreme Coins every 24 hours.</p>
+                      </div>
+                      <div className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full shrink-0">
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest whitespace-nowrap">
+                          {(() => {
+                            const userId = user?.uid || 'guest';
+                            const localStreak = parseInt(localStorage.getItem(`daily_streak_${userId}`) || '0', 10);
+                            return user?.dailyStreak !== undefined ? user.dailyStreak : localStreak;
+                          })()} Day Streak
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Streak Summary Info box */}
+                      <div className="bg-white/5 p-4 rounded-3xl border border-white/5 flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-0.5">Availability Status</p>
+                          <p className="text-xs font-bold text-white">
+                            {(() => {
+                              const today = new Date();
+                              const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                              const userId = user?.uid || 'guest';
+                              const localLastClaimed = localStorage.getItem(`daily_last_claimed_${userId}`) || '';
+                              const isClaimed = user?.lastDailyBonusClaimed === todayStr || localLastClaimed === todayStr;
+                              return isClaimed ? 'Claimed for Today' : 'Bonus Available Today!';
+                            })()}
+                          </p>
+                        </div>
+                        <div className="p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl shrink-0">
+                          <Gift className="w-5 h-5 ml-0" />
+                        </div>
+                      </div>
+
+                      {/* Actions buttons to dispatch Custom Events code */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('open-daily-bonus', { detail: { tab: 'claim' } }));
+                          }}
+                          className="py-3 px-4 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 transition-all font-display text-xs text-center uppercase tracking-wider shadow-lg shadow-amber-500/15 cursor-pointer"
+                        >
+                          {(() => {
+                            const today = new Date();
+                            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                            const userId = user?.uid || 'guest';
+                            const localLastClaimed = localStorage.getItem(`daily_last_claimed_${userId}`) || '';
+                            const isClaimed = user?.lastDailyBonusClaimed === todayStr || localLastClaimed === todayStr;
+                            return isClaimed ? 'View Board' : 'Claim Reward';
+                          })()}
+                        </button>
+                        <button
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('open-daily-bonus', { detail: { tab: 'history' } }));
+                          }}
+                          className="py-3 px-4 bg-white/5 text-gray-300 font-bold rounded-xl hover:bg-white/10 transition-all border border-white/10 text-xs text-center uppercase tracking-wider font-display flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <History className="w-3.5 h-3.5 shrink-0" />
+                          Claims Log
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2.5 text-red-400 mb-2">
+                      <div className="p-2 bg-red-500/10 rounded-xl border border-red-500/20">
+                        <ShieldAlert className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-display font-black uppercase tracking-wider text-red-400">Claiming Window Closed</h3>
+                        <p className="text-[10px] text-neutral-400">365-Day Daily Login Streak Allowance Complete</p>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-red-500/[0.02] border border-red-500/10 rounded-2xl text-[11px] text-neutral-400 leading-relaxed">
+                      Your eligibility for daily bonus claiming has permanently completed under system regulations. Detailed progression and analytics remain visible for audit purposes below.
+                    </div>
+                  </div>
+                )}
+
+                {/* Access & Session Analytics Area */}
+                <div className="mt-4">
+                  <StreakAnalysisArea />
+                </div>
+              </div>
+              <div className="absolute -right-12 -bottom-12 w-32 h-32 bg-amber-500/5 rounded-full blur-3xl group-hover:bg-amber-500/10 transition-all duration-500" />
+            </motion.div>
+
             <div className="p-8 rounded-[2.5rem] bg-white/5 border border-white/10 backdrop-blur-xl h-full flex flex-col">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-xl font-bold text-white flex items-center gap-2">
@@ -2438,7 +2601,7 @@ export default function Wallet() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
             >
-              <TopEarners />
+              <GlobalRankings />
             </motion.div>
           )}
         </AnimatePresence>
@@ -2582,15 +2745,21 @@ export default function Wallet() {
 
                       <div className="space-y-4">
                         <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Payment Method</label>
-                        <div className="grid grid-cols-3 gap-3">
-                          <button type="button" onClick={() => setPaymentMethod('stripe')} className={clsx("p-4 rounded-2xl border text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-3 transition-all", paymentMethod === 'stripe' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
-                            <CreditCard className="w-6 h-6" /> Stripe
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 md:gap-3">
+                          <button type="button" onClick={() => setPaymentMethod('stripe')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'stripe' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                            <CreditCard className="w-5 h-5" /> Stripe
                           </button>
-                          <button type="button" onClick={() => setPaymentMethod('paypal')} className={clsx("p-4 rounded-2xl border text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-3 transition-all", paymentMethod === 'paypal' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
-                            <DollarSign className="w-6 h-6" /> PayPal
+                          <button type="button" onClick={() => setPaymentMethod('paypal')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'paypal' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                            <DollarSign className="w-5 h-5" /> PayPal
                           </button>
-                          <button type="button" onClick={() => setPaymentMethod('crypto')} className={clsx("p-4 rounded-2xl border text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-3 transition-all", paymentMethod === 'crypto' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
-                            <Bitcoin className="w-6 h-6" /> Crypto
+                          <button type="button" onClick={() => setPaymentMethod('crypto')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'crypto' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                            <Bitcoin className="w-5 h-5" /> Bitcoin
+                          </button>
+                          <button type="button" onClick={() => setPaymentMethod('usdt')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'usdt' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                            <Coins className="w-5 h-5" /> USDT
+                          </button>
+                          <button type="button" onClick={() => setPaymentMethod('bank')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all col-span-2 sm:col-span-1", paymentMethod === 'bank' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)] shadow-lg shadow-[var(--color-supreme-gold)]/5" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                            <Landmark className="w-5 h-5" /> Bank Wire
                           </button>
                         </div>
                       </div>
@@ -2814,15 +2983,21 @@ export default function Wallet() {
                       {(showDeposit || showWithdraw) && (
                         <div>
                           <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em] mb-3">Payment Method</label>
-                          <div className="grid grid-cols-3 gap-3 mb-4">
-                            <button type="button" onClick={() => setPaymentMethod('stripe')} className={clsx("p-4 rounded-2xl border text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-3 transition-all", paymentMethod === 'stripe' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)]" : "border-white/10 text-gray-500 hover:bg-white/5")}>
-                              <CreditCard className="w-6 h-6" /> Stripe
+                          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 md:gap-3 mb-4">
+                            <button type="button" onClick={() => setPaymentMethod('stripe')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'stripe' ? "border-[var(--color-supreme-gold)] bg-[var(--color-supreme-gold)]/10 text-[var(--color-supreme-gold)]" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                              <CreditCard className="w-5 h-5" /> Stripe
                             </button>
-                            <button type="button" onClick={() => setPaymentMethod('paypal')} className={clsx("p-4 rounded-2xl border text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-3 transition-all", paymentMethod === 'paypal' ? "border-blue-500 bg-blue-500/10 text-blue-500" : "border-white/10 text-gray-500 hover:bg-white/5")}>
-                              <DollarSign className="w-6 h-6" /> PayPal
+                            <button type="button" onClick={() => setPaymentMethod('paypal')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'paypal' ? "border-blue-500 bg-blue-500/10 text-blue-500" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                              <DollarSign className="w-5 h-5" /> PayPal
                             </button>
-                            <button type="button" onClick={() => setPaymentMethod('crypto')} className={clsx("p-4 rounded-2xl border text-[10px] font-bold uppercase tracking-widest flex flex-col items-center gap-3 transition-all", paymentMethod === 'crypto' ? "border-orange-500 bg-orange-500/10 text-orange-500" : "border-white/10 text-gray-500 hover:bg-white/5")}>
-                              <Bitcoin className="w-6 h-6" /> Crypto
+                            <button type="button" onClick={() => setPaymentMethod('crypto')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'crypto' ? "border-orange-500 bg-orange-500/10 text-orange-500" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                              <Bitcoin className="w-5 h-5" /> Bitcoin
+                            </button>
+                            <button type="button" onClick={() => setPaymentMethod('usdt')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all", paymentMethod === 'usdt' ? "border-emerald-500 bg-emerald-500/10 text-emerald-400" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                              <Coins className="w-5 h-5" /> USDT
+                            </button>
+                            <button type="button" onClick={() => setPaymentMethod('bank')} className={clsx("p-3 rounded-2xl border text-[9px] font-bold uppercase tracking-wider flex flex-col items-center gap-2.5 transition-all col-span-2 sm:col-span-1", paymentMethod === 'bank' ? "border-violet-500 bg-violet-500/10 text-violet-400" : "border-white/10 text-gray-500 hover:bg-white/5")}>
+                              <Landmark className="w-5 h-5" /> Bank Wire
                             </button>
                           </div>
 
@@ -2873,11 +3048,307 @@ export default function Wallet() {
                       )}
 
                       {(showDeposit || showWithdraw) && paymentMethod === 'crypto' && (
-                        <div className={clsx("p-5 rounded-2xl border flex items-start gap-4", bitcoinAddress ? "bg-orange-500/10 border-orange-500/20" : "bg-amber-500/10 border-amber-500/20")}>
-                          {bitcoinAddress ? <ShieldCheck className="w-6 h-6 text-orange-500 shrink-0" /> : <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0" />}
-                          <p className={clsx("text-xs font-medium leading-relaxed", bitcoinAddress ? "text-orange-400" : "text-amber-400")}>
-                            {bitcoinAddress ? `Connected to Bitcoin (${bitcoinAddress.substring(0, 10)}...)` : 'Please link your Bitcoin address in the main wallet screen first.'}
-                          </p>
+                        <div className="space-y-4">
+                          <div className={clsx("p-5 rounded-2xl border flex items-start gap-4", bitcoinAddress ? "bg-orange-500/10 border-orange-500/20" : "bg-amber-500/10 border-amber-500/20")}>
+                            {bitcoinAddress ? <ShieldCheck className="w-6 h-6 text-orange-500 shrink-0" /> : <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0" />}
+                            <p className={clsx("text-xs font-medium leading-relaxed", bitcoinAddress ? "text-orange-400" : "text-amber-400")}>
+                              {bitcoinAddress ? `Connected to Bitcoin (${bitcoinAddress.substring(0, 10)}...)` : 'Please link your Bitcoin address in the main wallet screen first.'}
+                            </p>
+                          </div>
+                          
+                          {showDeposit && (
+                            <div className="p-5 rounded-2xl border bg-black/40 border-orange-500/20 space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-xs font-bold text-orange-500 uppercase tracking-wider">
+                                  <Bitcoin className="w-4 h-4 text-orange-500 animate-pulse shrink-0" />
+                                  <span>Platform Deposit Wallet</span>
+                                </div>
+                                <span className="text-[9px] bg-orange-500/15 text-orange-400 px-2.5 py-1 rounded-full border border-orange-500/25 font-bold uppercase tracking-widest flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                                  Instant Mobile Scan
+                                </span>
+                              </div>
+                              
+                              <p className="text-[11px] text-gray-400 leading-relaxed">
+                                Scan the generated QR code using any crypto wallet on your mobile device (supports Coinbase, Binance, Trust Wallet, MetaMask, etc.) or copy the deposit address below:
+                              </p>
+
+                              {/* Interactive QR Code Card */}
+                              <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl bg-white/5 border border-white/5">
+                                <div className="p-3 bg-white rounded-2xl shadow-xl flex items-center justify-center shrink-0">
+                                  <QRCodeSVG
+                                    id="btc-qr-code"
+                                    value={`bitcoin:${settings.bitcoinWalletAddress || '151nvA1dL4FhKzzKye5o48quApNFnXS3Qm'}`}
+                                    size={130}
+                                    level="H"
+                                    includeMargin={true}
+                                  />
+                                </div>
+                                <div className="flex-1 space-y-3.5 w-full text-center sm:text-left">
+                                  <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest block">Blockchain Network</span>
+                                    <p className="text-sm font-bold text-white flex items-center justify-center sm:justify-start gap-1.5 mt-0.5">
+                                      <span className="w-2 h-2 bg-orange-500 rounded-full" />
+                                      Bitcoin (BTC Mainnet)
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest block mb-1">Official Wallet Address</span>
+                                    <div className="flex items-center gap-2 bg-black/50 border border-white/5 px-3 py-2.5 rounded-xl">
+                                      <span className="font-mono text-[11px] text-orange-300 select-all break-all flex-1 text-left">
+                                        {settings.bitcoinWalletAddress || '151nvA1dL4FhKzzKye5o48quApNFnXS3Qm'}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(settings.bitcoinWalletAddress || '151nvA1dL4FhKzzKye5o48quApNFnXS3Qm');
+                                          toast.success('Platform Bitcoin address copied!');
+                                        }}
+                                        className="p-1.5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-colors"
+                                        title="Copy Address"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(settings.bitcoinWalletAddress || '151nvA1dL4FhKzzKye5o48quApNFnXS3Qm');
+                                    toast.success('Platform Bitcoin address copied to clipboard!');
+                                  }}
+                                  className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-orange-500/20 cursor-pointer"
+                                >
+                                  Copy Wallet Address
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const svgElement = document.getElementById('btc-qr-code') as unknown as SVGElement;
+                                    if (svgElement) {
+                                      const svgString = new XMLSerializer().serializeToString(svgElement);
+                                      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                                      const blobURL = window.URL.createObjectURL(svgBlob);
+                                      const image = new Image();
+                                      image.onload = () => {
+                                        const canvas = document.createElement('canvas');
+                                        canvas.width = 300;
+                                        canvas.height = 300;
+                                        const context = canvas.getContext('2d');
+                                        if (context) {
+                                          context.fillStyle = '#ffffff';
+                                          context.fillRect(0, 0, 300, 300);
+                                          context.drawImage(image, 25, 25, 250, 250);
+                                          const png = canvas.toDataURL('image/png');
+                                          const downloadLink = document.createElement('a');
+                                          downloadLink.href = png;
+                                          downloadLink.download = 'bitcoin_deposit_qr.png';
+                                          document.body.appendChild(downloadLink);
+                                          downloadLink.click();
+                                          document.body.removeChild(downloadLink);
+                                          toast.success('QR Code saved to downloads folder!');
+                                        }
+                                      };
+                                      image.src = blobURL;
+                                    } else {
+                                      toast.error('Could not locate QR code SVG');
+                                    }
+                                  }}
+                                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" /> Download QR Code
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(showDeposit || showWithdraw) && paymentMethod === 'usdt' && (
+                        <div className="space-y-4">
+                          <div className="p-5 rounded-2xl border bg-emerald-500/10 border-emerald-500/20 flex items-start gap-4">
+                            <ShieldCheck className="w-6 h-6 text-emerald-500 shrink-0" />
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold text-emerald-400">Secure USDT Gateway Active</p>
+                              <p className="text-[10px] text-gray-400 leading-relaxed">
+                                Universal stablecoin settlement enabled. Supports TRC20, ERC20, and Polygon networks. Fast execution with minimal gas.
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {showDeposit && (
+                            <div className="p-5 rounded-2xl border bg-black/40 border-emerald-500/20 space-y-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-xs font-bold text-emerald-500 uppercase tracking-wider">
+                                  <Coins className="w-4 h-4 text-emerald-400 animate-pulse shrink-0" />
+                                  <span>Official Platform USDT Wallet</span>
+                                </div>
+                                <span className="text-[9px] bg-emerald-500/15 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/25 font-bold uppercase tracking-widest flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping" />
+                                  Low Fee TRC20
+                                </span>
+                              </div>
+                              
+                              <p className="text-[11px] text-gray-400 leading-relaxed">
+                                Scan the QR code with your mobile crypto app or copy the address. Ensure you choose the correct blockchain network to prevent transaction loss.
+                              </p>
+
+                              {/* Interactive QR Code Card */}
+                              <div className="flex flex-col sm:flex-row items-center gap-5 p-4 rounded-xl bg-white/5 border border-white/5">
+                                <div className="p-3 bg-white rounded-2xl shadow-xl flex items-center justify-center shrink-0">
+                                  <QRCodeSVG
+                                    id="usdt-qr-code"
+                                    value={settings.usdtWalletAddress || "TYfVfKzQo3qF2p5fKk8fKk8fKk8fKk8fKk"}
+                                    size={130}
+                                    level="H"
+                                    includeMargin={true}
+                                  />
+                                </div>
+                                <div className="flex-1 space-y-3.5 w-full text-center sm:text-left">
+                                  <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest block">Blockchain Network</span>
+                                    <p className="text-sm font-bold text-white flex items-center justify-center sm:justify-start gap-1.5 mt-0.5">
+                                      <span className="w-2 h-2 bg-emerald-500 rounded-full" />
+                                      Tether USD (TRC20 / Tron Network)
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] text-gray-500 uppercase font-bold tracking-widest block mb-1">Official Wallet Address</span>
+                                    <div className="flex items-center gap-2 bg-black/50 border border-white/5 px-3 py-2.5 rounded-xl">
+                                      <span className="font-mono text-[11px] text-emerald-300 select-all break-all flex-1 text-left">
+                                        {settings.usdtWalletAddress || "TYfVfKzQo3qF2p5fKk8fKk8fKk8fKk8fKk"}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(settings.usdtWalletAddress || "TYfVfKzQo3qF2p5fKk8fKk8fKk8fKk8fKk");
+                                          toast.success('Platform USDT address copied!');
+                                        }}
+                                        className="p-1.5 hover:bg-white/10 text-gray-400 hover:text-white rounded-lg transition-colors"
+                                        title="Copy Address"
+                                      >
+                                        <Check className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(settings.usdtWalletAddress || "TYfVfKzQo3qF2p5fKk8fKk8fKk8fKk8fKk");
+                                    toast.success('Platform USDT address copied to clipboard!');
+                                  }}
+                                  className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 cursor-pointer"
+                                >
+                                  Copy USDT Address
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const svgElement = document.getElementById('usdt-qr-code') as unknown as SVGElement;
+                                    if (svgElement) {
+                                      const svgString = new XMLSerializer().serializeToString(svgElement);
+                                      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                                      const blobURL = window.URL.createObjectURL(svgBlob);
+                                      const image = new Image();
+                                      image.onload = () => {
+                                        const canvas = document.createElement('canvas');
+                                        canvas.width = 300;
+                                        canvas.height = 300;
+                                        const context = canvas.getContext('2d');
+                                        if (context) {
+                                          context.fillStyle = '#ffffff';
+                                          context.fillRect(0, 0, 300, 300);
+                                          context.drawImage(image, 25, 25, 250, 250);
+                                          const png = canvas.toDataURL('image/png');
+                                          const downloadLink = document.createElement('a');
+                                          downloadLink.href = png;
+                                          downloadLink.download = 'usdt_deposit_qr.png';
+                                          document.body.appendChild(downloadLink);
+                                          downloadLink.click();
+                                          document.body.removeChild(downloadLink);
+                                          toast.success('USDT QR Code saved to downloads!');
+                                        }
+                                      };
+                                      image.src = blobURL;
+                                    } else {
+                                      toast.error('Could not locate QR code SVG');
+                                    }
+                                  }}
+                                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" /> Download QR Code
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {(showDeposit || showWithdraw) && paymentMethod === 'bank' && (
+                        <div className="space-y-4">
+                          <div className="p-5 rounded-2xl border bg-violet-500/10 border-violet-500/20 flex items-start gap-4">
+                            <Landmark className="w-6 h-6 text-violet-400 shrink-0" />
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold text-violet-400">Direct Bank Wire / Local Transfer</p>
+                              <p className="text-[10px] text-gray-400 leading-relaxed">
+                                High-volume local and international bank clearing. Supports SEPA (Europe), ACH (US), and SWIFT (Global). Zero platform fees.
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {showDeposit && (
+                            <div className="p-5 rounded-2xl border bg-black/40 border-violet-500/20 space-y-4">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-violet-400 uppercase tracking-wider">Bank Wire Coordinates</span>
+                                <span className="text-[9px] bg-violet-500/15 text-violet-400 px-2.5 py-1 rounded-full border border-violet-500/25 font-bold uppercase tracking-widest">
+                                  Manual Clearing
+                                </span>
+                              </div>
+                              
+                              <p className="text-[11px] text-gray-400 leading-relaxed">
+                                Complete your bank transfer using the official coordinates below. You <strong className="text-violet-300">MUST</strong> include your unique reference code in the payment details to authorize and map funds automatically.
+                              </p>
+
+                              <div className="space-y-2 text-xs">
+                                {[
+                                  { label: 'Beneficiary Bank', val: 'Apex Global Clearing Group' },
+                                  { label: 'Beneficiary Name', val: 'Supreme Holdings Ltd.' },
+                                  { label: 'SWIFT / BIC', val: 'APEXUS33XXX' },
+                                  { label: 'IBAN / Account Number', val: settings.bankWireCoordinates || 'GB49 APEX 6016 1331 4452 90' },
+                                  { label: 'Routing / Sort Code', val: '60-16-13' },
+                                  { label: 'Mandatory Reference Code', val: `TX-BANK-${user?.uid ? user.uid.substring(0, 6).toUpperCase() : 'SUPREME'}` }
+                                ].map((field, idx) => (
+                                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 p-2.5 rounded-lg bg-white/5 border border-white/5 font-medium text-white">
+                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{field.label}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={clsx("font-mono text-[11px] select-all font-bold", field.label.includes('Reference') ? "text-violet-300 underline underline-offset-4" : "text-white")}>
+                                        {field.val}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(field.val);
+                                          toast.success(`${field.label} copied!`);
+                                        }}
+                                        className="text-gray-500 hover:text-white transition-colors p-0.5"
+                                        title={`Copy ${field.label}`}
+                                      >
+                                        <Check className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                       

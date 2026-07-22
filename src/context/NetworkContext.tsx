@@ -113,6 +113,10 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch all users for search (simplified for demo)
   useEffect(() => {
+    if (!user || !user.uid) {
+      setAllUsers([]);
+      return;
+    }
     const q = query(collection(db, 'users'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const users: Friend[] = [];
@@ -133,11 +137,11 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       handleFirestoreError(error, OperationType.GET, 'users');
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // Listen to friendships
   useEffect(() => {
-    if (!user) {
+    if (!user || !user.uid) {
       setFriends([]);
       setFriendRequests([]);
       setSentRequests([]);
@@ -207,6 +211,10 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
 
   // Listen to communities
   useEffect(() => {
+    if (!user || !user.uid) {
+      setCommunities([]);
+      return;
+    }
     const q = query(collection(db, 'communities'), orderBy('createdAt', 'desc'), limit(100));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const comms: Community[] = [];
@@ -218,11 +226,11 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       handleFirestoreError(error, OperationType.GET, 'communities');
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // Listen to subscriptions
   useEffect(() => {
-    if (!user) {
+    if (!user || !user.uid) {
       setSubscriptions([]);
       return;
     }
@@ -247,7 +255,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
 
   // Listen to messages
   useEffect(() => {
-    if (!user) {
+    if (!user || !user.uid) {
       setChatSessions({});
       return;
     }
@@ -255,15 +263,18 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
     const q = query(
       collection(db, 'messages'),
       where('participants', 'array-contains', user.uid),
-      orderBy('timestamp', 'desc'),
       limit(1000)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const sessions: { [friendId: string]: ChatSession } = {};
       
-      // Reverse the docs to process them in chronological order
-      const docs = [...snapshot.docs].reverse();
+      // Sort the docs by timestamp in ascending order (chronological order)
+      const docs = [...snapshot.docs].sort((a, b) => {
+        const timeA = a.data().timestamp?.toDate?.()?.getTime() || (a.data().timestamp ? new Date(a.data().timestamp).getTime() : 0);
+        const timeB = b.data().timestamp?.toDate?.()?.getTime() || (b.data().timestamp ? new Date(b.data().timestamp).getTime() : 0);
+        return timeA - timeB;
+      });
       
       docs.forEach((doc) => {
         const data = doc.data();

@@ -482,14 +482,19 @@ export default function BetOptimum() {
 
     const q = query(
       collection(db, 'bets'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const history: Bet[] = [];
       snapshot.forEach((doc) => {
         history.push({ id: doc.id, ...doc.data() } as Bet);
+      });
+      // Sort in memory by createdAt descending
+      history.sort((a, b) => {
+        const timeA = a.createdAt?.toDate?.()?.getTime() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.toDate?.()?.getTime() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
       });
       setBetHistory(history);
     }, (error) => {

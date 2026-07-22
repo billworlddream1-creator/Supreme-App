@@ -9,7 +9,9 @@ import {
   doc, 
   Timestamp,
   getDocs,
-  increment
+  increment,
+  setDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from './AuthContext';
@@ -27,6 +29,7 @@ export interface SubscriptionPlan {
   creditsPerDay?: number;
   streamingHoursPerDay?: number;
   canDownload?: boolean;
+  isPaused?: boolean;
 }
 
 export interface UserSubscription {
@@ -48,6 +51,9 @@ interface SubscriptionContextType {
   getSubscription: (type: PlanType) => UserSubscription | undefined;
   checkAccess: (type: PlanType | 'supreme-mode' | 'supreme-insight' | 'media') => { hasAccess: boolean; message?: string };
   updateSubscription: (subId: string, data: Partial<UserSubscription>) => Promise<void>;
+  addPlan: (plan: Omit<SubscriptionPlan, 'id'>) => Promise<void>;
+  updatePlan: (planId: string, data: Partial<SubscriptionPlan>) => Promise<void>;
+  deletePlan: (planId: string) => Promise<void>;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
@@ -92,9 +98,45 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const { user } = useAuth();
   const [userSubscriptions, setUserSubscriptions] = useState<UserSubscription[]>([]);
   const [allSubscriptions, setAllSubscriptions] = useState<UserSubscription[]>([]);
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
 
   useEffect(() => {
-    if (!user) {
+    // Dynamically synchronize the plans from Firestore with robust fallback
+    const unsubscribePlans = onSnapshot(collection(db, 'subscription_plans'), async (snapshot) => {
+      if (snapshot.empty) {
+        // Seed database with default PLANS if empty
+        try {
+          for (const p of PLANS) {
+            await setDoc(doc(db, 'subscription_plans', p.id), {
+              ...p,
+              isPaused: false
+            });
+          }
+        } catch (err) {
+          console.warn("Failed to seed subscription plans (gracefully using static fallback):", err);
+          setPlans(PLANS);
+        }
+      } else {
+        const loadedPlans: SubscriptionPlan[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          loadedPlans.push({
+            ...data,
+            id: docSnap.id
+          } as SubscriptionPlan);
+        });
+        setPlans(loadedPlans);
+      }
+    }, (error) => {
+      console.warn("Gracefully using static fallback for subscription plans:", error.message);
+      setPlans(PLANS);
+    });
+
+    return () => unsubscribePlans();
+  }, []);
+
+  useEffect(() => {
+    if (!user || !user.uid) {
       setUserSubscriptions([]);
       setAllSubscriptions([]);
       return;
@@ -133,9 +175,41 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     };
   }, [user]);
 
+  const addPlan = async (plan: Omit<SubscriptionPlan, 'id'>) => {
+    try {
+      const cleanId = plan.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Math.round(Math.random() * 1000);
+      await setDoc(doc(db, 'subscription_plans', cleanId), {
+        ...plan,
+        id: cleanId,
+        isPaused: false
+      });
+      toast.success(`Plan ${plan.name} created successfully!`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, 'subscription_plans');
+    }
+  };
+
+  const updatePlan = async (planId: string, data: Partial<SubscriptionPlan>) => {
+    try {
+      await updateDoc(doc(db, 'subscription_plans', planId), data);
+      toast.success('Subscription plan updated successfully!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `subscription_plans/${planId}`);
+    }
+  };
+
+  const deletePlan = async (planId: string) => {
+    try {
+      await deleteDoc(doc(db, 'subscription_plans', planId));
+      toast.success('Subscription plan deleted successfully!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `subscription_plans/${planId}`);
+    }
+  };
+
   const subscribe = async (planId: string, method: 'stripe' | 'wallet' = 'stripe') => {
     if (!user) return;
-    const plan = PLANS.find(p => p.id === planId);
+    const plan = plans.find(p => p.id === planId);
     if (!plan) return;
 
     if (method === 'wallet') {
@@ -254,14 +328,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   return (
     <SubscriptionContext.Provider value={{
-      plans: PLANS,
+      plans,
       userSubscriptions,
       allSubscriptions,
       subscribe,
       isSubscribed,
       getSubscription,
       checkAccess,
-      updateSubscription
+      updateSubscription,
+      addPlan,
+      updatePlan,
+      deletePlan
     }}>
       {children}
     </SubscriptionContext.Provider>

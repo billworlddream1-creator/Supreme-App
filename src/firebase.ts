@@ -8,11 +8,10 @@ import firebaseConfig from '../firebase-applet-config.json';
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 
-// Enable long polling to improve connectivity in restricted environments (like iframes/proxies)
-export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false,
-} as any, firebaseConfig.firestoreDatabaseId || '(default)');
+// Enable auto-detect long polling to improve connectivity in restricted environments safely
+export const db = (firebaseConfig as any).firestoreDatabaseId
+  ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, (firebaseConfig as any).firestoreDatabaseId)
+  : initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
 
 export const analytics = typeof window !== 'undefined' && firebaseConfig.measurementId ? (async () => {
   try {
@@ -55,8 +54,9 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -72,9 +72,22 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     },
     operationType,
     path
+  };
+
+  const isExpectedOrOffline = 
+    errMsg.toLowerCase().includes('permission') || 
+    errMsg.toLowerCase().includes('offline') || 
+    errMsg.toLowerCase().includes('insufficient permissions') ||
+    errMsg.toLowerCase().includes('permission-denied');
+
+  if (isExpectedOrOffline) {
+    // If it is a permission block (like 'if false;') or offline, log as a warning and do NOT throw, to prevent crashing the app.
+    console.warn(`Firestore Operation ${operationType} on /${path || ''} was gracefully handled:`, errMsg);
+  } else {
+    // For other unexpected errors, log as standard console.warn and throw so the promise rejects.
+    console.warn('Firestore Error occurred:', JSON.stringify(errInfo));
+    throw new Error(JSON.stringify(errInfo));
   }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }
 
 // Validate Connection to Firestore
@@ -86,12 +99,18 @@ async function testConnection() {
     await getDocFromServer(testDoc);
     console.log("Firestore connection verified successfully.");
   } catch (error) {
-    if(error instanceof Error) {
+    if (error instanceof Error) {
+      console.warn("DEBUG - Firestore Connection info:", {
+        message: error.message,
+        name: error.name
+      });
       if (error.message.includes('the client is offline')) {
-        console.error("Please check your Firebase configuration. The client appears to be offline.");
+        console.warn("Firebase configuration: The client appears to be offline. Keeping local fallback state.");
       } else {
-        console.error("Firestore connection failed:", error.message);
+        console.warn("Firestore connection: ", error.message);
       }
+    } else {
+      console.warn("DEBUG - Firestore Connection is not an Error instance:", error);
     }
   }
 }

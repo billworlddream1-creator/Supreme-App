@@ -91,6 +91,7 @@ import {
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
+import { useUserStatus } from '../context/UserStatusContext';
 import { toast } from 'sonner';
 import { generateContent } from '../services/aiService';
 import { collection, getDocs, query, orderBy, limit as firestoreLimit, addDoc, onSnapshot, Timestamp } from 'firebase/firestore';
@@ -219,6 +220,8 @@ interface NetworkMember {
   role: string;
   followers: number;
   isFollowing: boolean;
+  engagementRate?: string;
+  postsCount?: number;
 }
 
 interface ChatMessage {
@@ -266,17 +269,18 @@ const MOCK_VIDEOS: VideoData[] = [
 ];
 
 const MOCK_NETWORK: NetworkMember[] = [
-  { id: 'n1', name: 'Julian Thorne', role: 'Tech Leader', followers: 12500, isFollowing: false },
-  { id: 'n2', name: 'Sophia Chen', role: 'Venture Partner', followers: 8400, isFollowing: false },
-  { id: 'n3', name: 'David Miller', role: 'Creative Director', followers: 45000, isFollowing: true },
-  { id: 'n4', name: 'Isabella Ross', role: 'Marketing Guru', followers: 22000, isFollowing: false },
-  { id: 'n5', name: 'Liam Neeson', role: 'Industry Legend', followers: 150000, isFollowing: false },
-  { id: 'n6', name: 'Emma Watson', role: 'Global Icon', followers: 8500000, isFollowing: true },
+  { id: 'n1', name: 'Julian Thorne', role: 'Tech Leader', followers: 12500, isFollowing: false, engagementRate: '5.2%', postsCount: 142 },
+  { id: 'n2', name: 'Sophia Chen', role: 'Venture Partner', followers: 8400, isFollowing: false, engagementRate: '8.7%', postsCount: 98 },
+  { id: 'n3', name: 'David Miller', role: 'Creative Director', followers: 45000, isFollowing: true, engagementRate: '4.1%', postsCount: 310 },
+  { id: 'n4', name: 'Isabella Ross', role: 'Marketing Guru', followers: 22000, isFollowing: false, engagementRate: '6.5%', postsCount: 215 },
+  { id: 'n5', name: 'Liam Neeson', role: 'Industry Legend', followers: 150000, isFollowing: false, engagementRate: '11.3%', postsCount: 604 },
+  { id: 'n6', name: 'Emma Watson', role: 'Global Icon', followers: 8500000, isFollowing: true, engagementRate: '14.2%', postsCount: 1240 },
 ];
 
 export default function SupremeCelebHub() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { getUserStatus } = useUserStatus();
   const { 
     balance, 
     celebHubBalance, 
@@ -311,13 +315,47 @@ export default function SupremeCelebHub() {
   const [zoomedVideo, setZoomedVideo] = useState<VideoData | null>(null);
   const [dislikedVideos, setDislikedVideos] = useState<Set<string>>(new Set());
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('supreme_favorites');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleFavorite = (id: string, name: string) => {
+    setFavorites(prev => {
+      const isFav = prev.includes(id);
+      let updated;
+      if (isFav) {
+        updated = prev.filter(fId => fId !== id);
+        toast.success(`Removed ${name} from favorites.`);
+      } else {
+        updated = [...prev, id];
+        toast.success(`Added ${name} to favorites! 💖`);
+      }
+      localStorage.setItem('supreme_favorites', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const [selectedStatsMember, setSelectedStatsMember] = useState<NetworkMember | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(MOCK_MESSAGES);
+  const [activeChatPartner, setActiveChatPartner] = useState({
+    id: 'elena',
+    name: 'Elena Vance',
+    avatar: 'https://picsum.photos/seed/elena/150',
+    role: 'Elite Advisor'
+  });
+  const [conversations, setConversations] = useState<Record<string, ChatMessage[]>>({
+    'elena': MOCK_MESSAGES,
+  });
   const [newChatMessage, setNewChatMessage] = useState('');
   const [activePowerModule, setActivePowerModule] = useState<string | null>(null);
 
@@ -380,6 +418,29 @@ export default function SupremeCelebHub() {
       document.documentElement.classList.remove('dark');
     }
   }, [hubSettings.darkMode]);
+
+  // Live status states & subscription
+  const [dbStatuses, setDbStatuses] = useState<any[]>([]);
+  const [activeStatusViewer, setActiveStatusViewer] = useState<any | null>(null);
+
+  useEffect(() => {
+    const statusesCollection = collection(db, 'statuses');
+    const unsubscribe = onSnapshot(statusesCollection, (snapshot) => {
+      const all: any[] = [];
+      const now = new Date();
+      snapshot.forEach((doc) => {
+        const d = doc.data();
+        const expiry = d.expiresAt ? (d.expiresAt.toDate ? d.expiresAt.toDate() : new Date(d.expiresAt)) : null;
+        if (!expiry || expiry > now) {
+          all.push({ id: doc.id, ...d });
+        }
+      });
+      setDbStatuses(all);
+    }, (error) => {
+      console.error("Error loading statuses in CelebHub:", error);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const primaryColor = hubSettings.theme === 'emerald' ? 'emerald-600' : 'yellow-600';
   const primaryBg = hubSettings.theme === 'emerald' ? 'bg-emerald-600' : 'bg-yellow-600';
@@ -453,6 +514,7 @@ export default function SupremeCelebHub() {
     e.preventDefault();
     if (!newChatMessage.trim()) return;
 
+    const partnerId = activeChatPartner.id;
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
       sender: {
@@ -464,8 +526,76 @@ export default function SupremeCelebHub() {
       isMe: true
     };
 
-    setChatMessages([...chatMessages, newMessage]);
+    const currentMsgs = conversations[partnerId] || [];
+    const updatedConversations = {
+      ...conversations,
+      [partnerId]: [...currentMsgs, newMessage]
+    };
+    setConversations(updatedConversations);
     setNewChatMessage('');
+
+    // Simulate response from the celebrity
+    setTimeout(() => {
+      const responses = [
+        `Thanks for the message! I really appreciate your support and would love to collaborate on a premium campaign soon. Let's draft a proposal together!`,
+        `Hey! Loved your outreach. Let's sync up after my current stream ends. Stay tuned! 🚀`,
+        `That sounds amazing! I am highly interested. Could you check out my powerhouse level to see if we can unlock joint campaigns?`,
+        `Appreciate you reaching out! Let's schedule a call tomorrow to discuss premium media distribution! 🌟`,
+      ];
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      
+      const replyMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: {
+          name: activeChatPartner.name,
+          avatar: activeChatPartner.avatar
+        },
+        text: randomResponse,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isMe: false
+      };
+
+      setConversations(prev => ({
+        ...prev,
+        [partnerId]: [...(prev[partnerId] || []), replyMessage]
+      }));
+    }, 1500);
+  };
+
+  const handleQuickMessage = (member: NetworkMember) => {
+    setActiveChatPartner({
+      id: member.id,
+      name: member.name,
+      avatar: `https://picsum.photos/seed/celebvideo${member.id}/150`,
+      role: member.role
+    });
+    
+    // Pre-filled message
+    setNewChatMessage(`Hi ${member.name}! I really admire your profile as an elite ${member.role}. Let's collaborate! 🚀`);
+    
+    // Open chat tab
+    setActiveTab('chat');
+    
+    setConversations(prev => {
+      if (prev[member.id]) return prev;
+      return {
+        ...prev,
+        [member.id]: [
+          {
+            id: `welcome-${member.id}`,
+            sender: { 
+              name: member.name, 
+              avatar: `https://picsum.photos/seed/celebvideo${member.id}/150` 
+            },
+            text: `Hi there! Thanks for visiting my supreme profile. How can I assist you with your social outreach today?`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isMe: false
+          }
+        ]
+      };
+    });
+
+    toast.success(`Secure chat initiated with ${member.name}! Pre-filled message ready.`);
   };
 
   const toggleFullscreen = () => {
@@ -2098,12 +2228,12 @@ export default function SupremeCelebHub() {
                 {/* Chat Header */}
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                      <Lock className="w-5 h-5 text-emerald-600" />
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-emerald-500/10 shrink-0">
+                      <img src={activeChatPartner.avatar} alt={activeChatPartner.name} className="w-full h-full object-cover" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-gray-900 text-sm">Secure Elite Chat</h3>
-                      <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">End-to-End Encrypted</p>
+                      <h3 className="font-bold text-gray-900 text-sm">Secure Chat with {activeChatPartner.name}</h3>
+                      <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">{activeChatPartner.role}</p>
                     </div>
                   </div>
                   <button className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors">
@@ -2113,7 +2243,7 @@ export default function SupremeCelebHub() {
 
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-                  {chatMessages.map((msg) => (
+                  {(conversations[activeChatPartner.id] || []).map((msg) => (
                     <div 
                       key={msg.id} 
                       className={clsx(
@@ -2157,7 +2287,7 @@ export default function SupremeCelebHub() {
                       type="text" 
                       value={newChatMessage}
                       onChange={(e) => setNewChatMessage(e.target.value)}
-                      placeholder="Message Elena Vance..."
+                      placeholder={`Message ${activeChatPartner.name}...`}
                       className="flex-1 bg-gray-50 border border-gray-100 rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/30 transition-all"
                     />
                     <button 
@@ -2202,16 +2332,58 @@ export default function SupremeCelebHub() {
             {activeTab === 'network' && (
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {network.slice(0, visibleNetworkCount).map((member) => (
-                  <motion.div 
-                    key={member.id} 
-                    tabIndex={0}
-                    onClick={() => setSelectedMemberId(member.id)}
-                    className={clsx(
-                      "celeb-profile-card glass-panel p-4 rounded-2xl border flex items-center justify-between group relative overflow-hidden",
-                      selectedMemberId === member.id ? "selected" : "border-gray-200 bg-white"
-                    )}
-                  >
+                  {network.slice(0, visibleNetworkCount).map((member) => {
+                    const latestStatus = (() => {
+                      // 1. Check database statuses first
+                      const realStatus = dbStatuses.find(s => s.userId === member.id);
+                      if (realStatus) return realStatus;
+
+                      // 2. Fallbacks
+                      const fallbackMap: Record<string, { mediaType: 'image' | 'video'; mediaUrl: string; caption: string }> = {
+                        n1: {
+                          mediaType: 'image',
+                          mediaUrl: 'https://picsum.photos/seed/status_n1/400/600',
+                          caption: 'Optimizing quantum neural models for the Supreme Network! 🧠💻'
+                        },
+                        n2: {
+                          mediaType: 'video',
+                          mediaUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+                          caption: 'Live from the Silicon Valley Venture Gala 💎✨'
+                        },
+                        n3: {
+                          mediaType: 'image',
+                          mediaUrl: 'https://picsum.photos/seed/status_n3/400/600',
+                          caption: 'New visual paradigm for the future of creative AI is here. 🎨🌟'
+                        },
+                        n4: {
+                          mediaType: 'video',
+                          mediaUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
+                          caption: 'Viral branding masterclass in 5 minutes! 🚀🔥'
+                        },
+                        n5: {
+                          mediaType: 'image',
+                          mediaUrl: 'https://picsum.photos/seed/status_n5/400/600',
+                          caption: 'Behind the scenes on the movie set in London 🎬✈️'
+                        },
+                        n6: {
+                          mediaType: 'video',
+                          mediaUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+                          caption: 'Spreading the message of sustainable living at the UN 🌍🌸'
+                        }
+                      };
+                      return fallbackMap[member.id] || null;
+                    })();
+
+                    return (
+                    <motion.div 
+                      key={member.id} 
+                      tabIndex={0}
+                      onClick={() => setSelectedMemberId(member.id)}
+                      className={clsx(
+                        "celeb-profile-card glass-panel p-4 rounded-2xl border flex items-center justify-between group relative overflow-visible",
+                        selectedMemberId === member.id ? "selected" : "border-gray-200 bg-white"
+                      )}
+                    >
                     {/* Hover Popover showing follower count and rank tier */}
                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-4 bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-xl opacity-0 translate-y-1 scale-95 group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100 pointer-events-none transition-all duration-200 z-50 flex flex-col gap-2">
                       <div className="flex items-center gap-2 border-b border-white/10 pb-1.5">
@@ -2256,17 +2428,174 @@ export default function SupremeCelebHub() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gray-100 overflow-hidden border-2 border-transparent group-hover:border-emerald-500/20 transition-all">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 overflow-hidden border-2 border-transparent group-hover:border-emerald-500/20 transition-all relative">
                         <img src={`https://picsum.photos/seed/member${member.id}/150`} alt={member.name} className="w-full h-full object-cover" />
+                        <span 
+                          id={`status-dot-${member.id}`}
+                          className={clsx(
+                            "absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full shadow-sm transition-all duration-300",
+                            getUserStatus(member.id).isOnline ? "bg-emerald-500 animate-pulse" : "bg-gray-400"
+                          )}
+                          title={getUserStatus(member.id).isOnline ? "Online" : "Offline"}
+                        />
                       </div>
                       <div>
-                        <h4 className="font-bold text-sm group-hover:text-emerald-700 transition-colors">{member.name}</h4>
+                        <div className="flex items-center gap-1">
+                          <h4 className="font-bold text-sm group-hover:text-emerald-700 transition-colors">{member.name}</h4>
+                          <span title="Verified Celebrity" className="inline-flex items-center">
+                            <CheckCircle2 
+                              className="w-3.5 h-3.5 text-[var(--color-supreme-gold-light)] fill-[var(--color-supreme-gold)]/20 shrink-0" 
+                            />
+                          </span>
+                          {favorites.includes(member.id) && (
+                            <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500 shrink-0" />
+                          )}
+                          {getUserStatus(member.id).isFeatured && (
+                            <span title="Featured" className="inline-flex items-center">
+                              <Crown 
+                                id={`featured-crown-${member.id}`}
+                                className="w-4 h-4 text-amber-500 fill-amber-400 shrink-0" 
+                              />
+                            </span>
+                          )}
+                        </div>
                         <div className="flex flex-col">
                           <p className="text-[10px] text-emerald-600 font-bold uppercase">{member.role}</p>
-                          <p className="text-[10px] text-gray-400 font-medium">{formatFollowers(member.followers)} Followers</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="text-[10px] text-gray-400 font-medium">{formatFollowers(member.followers)} Followers</p>
+                            <span className="text-gray-300 text-[10px] select-none">•</span>
+                            
+                            {/* Hover-expandable Stat Badge */}
+                            <div className="relative group/stats inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full transition-all cursor-help">
+                              <Activity className="w-2.5 h-2.5 text-emerald-650 animate-pulse" />
+                              <span>Metrics</span>
+                              
+                              {/* Expanded Stat Tooltip Display on Hover */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-slate-900 border border-slate-800 text-white rounded-xl shadow-xl opacity-0 scale-95 translate-y-1 group-hover/stats:opacity-100 group-hover/stats:scale-100 group-hover/stats:translate-y-0 transition-all duration-200 z-50 flex flex-col gap-1.5 pointer-events-none">
+                                <div className="text-[10px] font-black uppercase tracking-wider text-emerald-400 border-b border-white/10 pb-1 flex items-center gap-1">
+                                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>Engagement Metrics</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="text-gray-400">Total Followers:</span>
+                                  <span className="font-extrabold text-neutral-100">{member.followers.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="text-gray-400">Engagement Rate:</span>
+                                  <span className="font-extrabold text-emerald-400">{member.engagementRate || '5.4%'}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="text-gray-400">Total Posts:</span>
+                                  <span className="font-extrabold text-indigo-400">{member.postsCount || '150'}</span>
+                                </div>
+                                <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden mt-0.5">
+                                  <div 
+                                    className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full" 
+                                    style={{ width: member.engagementRate ? `${parseFloat(member.engagementRate) * 6}%` : '32%' }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <span className="text-gray-300 text-[10px] select-none">•</span>
+
+                            {/* Fan Rank Badge */}
+                            <div className={clsx(
+                              "relative group/fanrank inline-flex items-center gap-1 text-[9px] font-extrabold px-1.5 py-0.5 rounded-full border transition-all cursor-help",
+                              member.isFollowing
+                                ? member.followers > 50000
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100" // Gold
+                                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"  // Silver
+                                : "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100" // Bronze
+                            )}>
+                              <Award className={clsx(
+                                "w-2.5 h-2.5",
+                                member.isFollowing
+                                  ? member.followers > 50000
+                                    ? "text-amber-500"
+                                    : "text-slate-400"
+                                  : "text-orange-600"
+                              )} />
+                              <span>
+                                {member.isFollowing
+                                  ? member.followers > 50000
+                                    ? "Gold Fan"
+                                    : "Silver Fan"
+                                  : "Bronze Fan"}
+                              </span>
+
+                              {/* Tooltip on Hover */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 bg-slate-900 border border-slate-800 text-white rounded-xl shadow-xl opacity-0 scale-95 translate-y-1 group-hover/fanrank:opacity-100 group-hover/fanrank:scale-100 group-hover/fanrank:translate-y-0 transition-all duration-200 z-50 flex flex-col gap-1.5 pointer-events-none text-left font-normal">
+                                <div className="text-[10px] font-black uppercase tracking-wider text-amber-400 border-b border-white/10 pb-1 flex items-center gap-1">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>Fan Rank Standing</span>
+                                </div>
+                                <div className="text-[10px] text-gray-300 leading-normal">
+                                  {member.isFollowing
+                                    ? member.followers > 50000
+                                      ? "You are a Gold Fan! You have premium access, direct priority messages, and star fan badges."
+                                      : "You are a Silver Fan! Interact further by sending quick messages to unlock Gold standing."
+                                    : "You are currently a Bronze Fan. Follow this celebrity to instantly elevate your standing to Silver!"}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
+                  {/* Live Status Preview Circle */}
+                  {latestStatus && (
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveStatusViewer({
+                          ...latestStatus,
+                          memberName: member.name,
+                          memberAvatar: `https://picsum.photos/seed/member${member.id}/150`
+                        });
+                      }}
+                      className="relative shrink-0 flex items-center justify-center cursor-pointer group/status mr-1 sm:mr-2 z-20"
+                      title="View Live Status Story"
+                    >
+                      {/* Glowing ring animation */}
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-500 via-emerald-500 to-indigo-500 animate-pulse opacity-75 blur-[2px] group-hover/status:blur-[4px] transition-all" />
+                      <div className="absolute inset-0.5 rounded-full bg-white dark:bg-slate-900 z-0" />
+                      
+                      {/* Actual preview circle */}
+                      <div className="relative w-10 h-10 rounded-full overflow-hidden border border-white/25 z-10 flex items-center justify-center">
+                        {latestStatus.mediaType === 'video' ? (
+                          <video 
+                            src={latestStatus.mediaUrl} 
+                            autoPlay 
+                            loop 
+                            muted 
+                            playsInline 
+                            className="w-full h-full object-cover scale-110 hover:scale-125 transition-transform duration-500" 
+                          />
+                        ) : (
+                          <img 
+                            src={latestStatus.mediaUrl} 
+                            alt="Status snippet" 
+                            className="w-full h-full object-cover scale-110 hover:scale-125 transition-transform duration-500"
+                          />
+                        )}
+                        
+                        {/* Tiny 'LIVE' badge indicator */}
+                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-rose-500 border border-white dark:border-slate-900 rounded-full animate-ping" />
+                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-rose-500 border border-white dark:border-slate-900 rounded-full" />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 relative z-20">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleQuickMessage(member); }}
+                      className="px-3 py-2 bg-slate-900 text-white hover:bg-slate-800 rounded-xl transition-all font-bold text-[11px] uppercase tracking-wider flex items-center gap-1.5 shadow-md hover:shadow-lg hover:shadow-slate-900/10"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
+                      <span className="hidden sm:inline">Quick Msg</span>
+                    </button>
+
                     <button 
                       disabled={member.isFollowing}
                       onClick={(e) => { e.stopPropagation(); handleFollow(member.id); }}
@@ -2289,45 +2618,77 @@ export default function SupremeCelebHub() {
                         </>
                       )}
                     </button>
+                  </div>
 
-                    {/* Hidden Hover Action Row – Slides up from absolute bottom */}
-                    <div className="absolute inset-x-0 bottom-0 h-14 bg-white/95 backdrop-blur-md border-t border-gray-100 flex items-center justify-around translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-10 px-3">
-                      <button 
-                        disabled={member.isFollowing}
-                        onClick={(e) => { e.stopPropagation(); handleFollow(member.id); }}
-                        className={clsx(
-                          "flex-1 mx-1.5 h-9 rounded-xl transition-all font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1 border",
-                          member.isFollowing 
-                            ? "bg-emerald-650/10 bg-emerald-50 text-emerald-600 border-emerald-200 cursor-not-allowed" 
-                            : "bg-emerald-600 text-white border-transparent hover:bg-emerald-700 hover:shadow-lg hover:shadow-emerald-600/10"
-                        )}
-                      >
-                        {member.isFollowing ? (
-                          <>
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Following</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>Follow</span>
-                          </>
-                        )}
-                      </button>
-                      <button 
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          toast.success(`Direct secure chat window with ${member.name} initiated!`); 
+                    {/* Floating Action Menu on Hover */}
+                    <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-md rounded-2xl flex flex-col items-center justify-center gap-2.5 opacity-0 group-hover:opacity-100 transition-all duration-300 z-30 pointer-events-none group-hover:pointer-events-auto p-4">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">Quick Actions</span>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* Message Link */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleQuickMessage(member);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95"
+                          title="Message"
+                        >
+                          <MessageSquare className="w-3 h-3 text-emerald-300" />
+                          <span>Message</span>
+                        </button>
+
+                        {/* View Stats Link */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedStatsMember(member);
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-wider bg-indigo-600 rounded-xl transition-all shadow-md active:scale-95"
+                          title="View Stats"
+                        >
+                          <TrendingUp className="w-3 h-3 text-indigo-300" />
+                          <span>Stats</span>
+                        </button>
+
+                        {/* Add to Favorites Link */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(member.id, member.name);
+                          }}
+                          className={clsx(
+                            "flex items-center gap-1 px-2.5 py-1.5 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95",
+                            favorites.includes(member.id)
+                              ? "bg-red-600 hover:bg-red-700 text-white shadow-red-600/20"
+                              : "bg-slate-800 hover:bg-slate-700 text-white"
+                          )}
+                          title="Add to Favorites"
+                        >
+                          <Heart className={clsx("w-3 h-3", favorites.includes(member.id) ? "fill-white" : "")} />
+                          <span>{favorites.includes(member.id) ? 'Favorited' : 'Favorite'}</span>
+                        </button>
+                      </div>
+
+                      {/* Follow status quick switch */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFollow(member.id);
                         }}
-                        className="flex-1 mx-1.5 h-9 bg-gray-900 text-white rounded-xl font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1 border border-transparent hover:bg-gray-800 transition-all hover:shadow-lg hover:shadow-gray-900/10"
+                        className={clsx(
+                          "w-full max-w-[180px] mt-1 py-1.5 rounded-lg font-bold text-[9px] uppercase tracking-widest border transition-all text-center",
+                          member.isFollowing
+                            ? "bg-transparent text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                            : "bg-white hover:bg-gray-100 text-slate-900 border-transparent"
+                        )}
                       >
-                        <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Message</span>
+                        {member.isFollowing ? '✓ Following' : '+ Follow'}
                       </button>
                     </div>
 
                   </motion.div>
-                ))}
+                );})}
                 </div>
                 {isLoadingMore && (
                   <div className="flex justify-center py-8">
@@ -4877,6 +5238,250 @@ export default function SupremeCelebHub() {
                   >
                     Complete Transfer
                   </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Celebrity Stats Modal */}
+          {selectedStatsMember && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[120] flex items-center justify-center bg-black/85 backdrop-blur-md p-4"
+              onClick={() => setSelectedStatsMember(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl text-white"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header card with background ambient glow */}
+                <div className="relative p-6 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-emerald-950/45 via-slate-900 to-indigo-950/45">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-emerald-500 shadow-md">
+                      <img 
+                        src={`https://picsum.photos/seed/member${selectedStatsMember.id}/150`} 
+                        alt={selectedStatsMember.name} 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold flex items-center gap-1.5 text-neutral-100">
+                        {selectedStatsMember.name}
+                        {favorites.includes(selectedStatsMember.id) && (
+                          <Heart className="w-4 h-4 text-red-500 fill-red-500 animate-pulse" />
+                        )}
+                      </h3>
+                      <p className="text-xs text-emerald-400 font-extrabold uppercase tracking-wider">{selectedStatsMember.role}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedStatsMember(null)} 
+                    className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  {/* Grid of Key Performance Indicators */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white/5 border border-white/5 rounded-2xl p-3 text-center">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Total Followers</span>
+                      <span className="text-base font-black text-emerald-400">{selectedStatsMember.followers.toLocaleString()}</span>
+                    </div>
+                    <div className="bg-white/5 border border-white/5 rounded-2xl p-3 text-center">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Engagement Rate</span>
+                      <span className="text-base font-black text-amber-400">{selectedStatsMember.engagementRate || '5.4%'}</span>
+                    </div>
+                    <div className="bg-white/5 border border-white/5 rounded-2xl p-3 text-center">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Total Posts</span>
+                      <span className="text-base font-black text-blue-400">{selectedStatsMember.postsCount || 150}</span>
+                    </div>
+                  </div>
+
+                  {/* Monthly Impressions / Outreach Performance */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-3xl p-4 space-y-3">
+                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-300">Outreach Statistics</span>
+                      <span className="text-[9px] font-mono text-emerald-400 font-black px-2 py-0.5 bg-emerald-950/50 rounded-full uppercase tracking-wider">
+                        Verified Performance
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between items-center text-gray-400">
+                        <span>Weekly Impressions:</span>
+                        <span className="font-bold text-neutral-200">
+                          {((selectedStatsMember.followers * 1.5) / 4).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-gray-400">
+                        <span>Profile Clickthrough:</span>
+                        <span className="font-bold text-neutral-200">12.4%</span>
+                      </div>
+                      <div className="flex justify-between items-center text-gray-400">
+                        <span>Est. Active Campaigns:</span>
+                        <span className="font-bold text-neutral-200">3 Campaigns Running</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* High Fidelity Simulated Graph of Engagement */}
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Engagement Growth (Last 6 Months)</span>
+                    <div className="bg-slate-950/50 border border-slate-800/80 rounded-2xl p-4 h-32 flex items-end justify-between gap-3 pt-6">
+                      {[35, 45, 60, 50, 75, 90].map((val, idx) => {
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                            <span className="text-[8px] font-mono font-bold text-emerald-400">{val}%</span>
+                            <div 
+                              className="w-full bg-gradient-to-t from-emerald-600/30 to-emerald-500 rounded-t h-full max-h-[80%] transition-all duration-1000"
+                              style={{ height: `${val}%` }}
+                            />
+                            <span className="text-[8px] text-gray-500 font-bold uppercase">{months[idx]}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Actions footer inside Modal */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedStatsMember(null);
+                        handleQuickMessage(selectedStatsMember);
+                      }}
+                      className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-2xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <MessageSquare className="w-4 h-4 text-emerald-200" />
+                      <span>Inquire & Message</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        toggleFavorite(selectedStatsMember.id, selectedStatsMember.name);
+                      }}
+                      className={clsx(
+                        "px-6 py-3 font-bold text-xs uppercase tracking-wider rounded-2xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-2",
+                        favorites.includes(selectedStatsMember.id)
+                          ? "bg-red-600 hover:bg-red-700 text-white"
+                          : "bg-slate-850 hover:bg-slate-800 text-gray-300"
+                      )}
+                    >
+                      <Heart className={clsx("w-4 h-4", favorites.includes(selectedStatsMember.id) ? "fill-white text-white" : "text-gray-400")} />
+                      <span>{favorites.includes(selectedStatsMember.id) ? 'Unfavorite' : 'Favorite'}</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+
+          {/* Immersive Celeb Live Status Story Viewer Modal */}
+          {activeStatusViewer && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[130] flex items-center justify-center bg-black/95 backdrop-blur-lg p-0 sm:p-4"
+              onClick={() => setActiveStatusViewer(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="relative w-full max-w-md h-full sm:h-[80vh] sm:max-h-[750px] bg-slate-950 sm:rounded-[2rem] overflow-hidden shadow-2xl flex flex-col justify-between border border-white/10"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Visual Segment Progress bar */}
+                <div className="absolute top-3 inset-x-4 z-50 flex gap-1">
+                  <div className="flex-1 h-1 bg-white/30 rounded-full overflow-hidden">
+                    <motion.div 
+                      key={activeStatusViewer.id}
+                      initial={{ width: '0%' }}
+                      animate={{ width: '100%' }}
+                      transition={{ duration: 5, ease: 'linear' }}
+                      onAnimationComplete={() => setActiveStatusViewer(null)}
+                      className="h-full bg-gradient-to-r from-emerald-400 to-teal-300"
+                    />
+                  </div>
+                </div>
+
+                {/* Header (Avatar & Name) */}
+                <div className="absolute top-6 inset-x-4 z-50 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent p-2 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <img 
+                      src={activeStatusViewer.memberAvatar} 
+                      alt={activeStatusViewer.memberName} 
+                      className="w-9 h-9 rounded-full object-cover border border-emerald-500"
+                    />
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-1">
+                        {activeStatusViewer.memberName}
+                        <CheckCircle2 className="w-3.5 h-3.5 text-[var(--color-supreme-gold-light)]" />
+                      </h4>
+                      <span className="text-[10px] text-gray-300 font-medium">LIVE STATUS</span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setActiveStatusViewer(null)}
+                    className="p-1.5 hover:bg-white/10 rounded-full text-white/80 hover:text-white transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Main Media Body */}
+                <div className="flex-1 w-full h-full flex items-center justify-center bg-black relative">
+                  {activeStatusViewer.mediaType === 'video' ? (
+                    <video 
+                      src={activeStatusViewer.mediaUrl} 
+                      autoPlay 
+                      loop 
+                      muted 
+                      playsInline 
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <img 
+                      src={activeStatusViewer.mediaUrl} 
+                      alt="Story Media" 
+                      className="w-full h-full object-contain"
+                    />
+                  )}
+                </div>
+
+                {/* Bottom Caption Overlay */}
+                <div className="p-6 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent pt-12 text-center space-y-4">
+                  <p className="text-sm text-neutral-100 font-medium leading-relaxed italic px-2">
+                    "{activeStatusViewer.caption}"
+                  </p>
+                  
+                  <div className="flex justify-center gap-3">
+                    <button
+                      onClick={() => {
+                        const targetMember = network.find(n => n.id === activeStatusViewer.userId) || {
+                          id: activeStatusViewer.userId || 'n1',
+                          name: activeStatusViewer.memberName,
+                          role: 'Celebrity',
+                          followers: 50000,
+                          isFollowing: false,
+                        } as any as NetworkMember;
+                        setActiveStatusViewer(null);
+                        handleQuickMessage(targetMember);
+                      }}
+                      className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 active:scale-95"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-200" />
+                      <span>Reply to Status</span>
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             </motion.div>

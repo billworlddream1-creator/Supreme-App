@@ -29,16 +29,18 @@ export default function T10Engagers() {
     
     const q = query(
       collection(db, 'weekly_engagement'),
-      where('weekId', '==', weekId),
-      orderBy('score', 'desc'),
-      limit(10)
+      where('weekId', '==', weekId)
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const engagersData: Engager[] = [];
       
-      for (let i = 0; i < snapshot.docs.length; i++) {
-        const data = snapshot.docs[i].data() as WeeklyEngagement;
+      const sortedDocs = [...snapshot.docs]
+        .sort((a, b) => (b.data().score || 0) - (a.data().score || 0))
+        .slice(0, 10);
+      
+      for (let i = 0; i < sortedDocs.length; i++) {
+        const data = sortedDocs[i].data() as WeeklyEngagement;
         const userDoc = await getDoc(doc(db, 'users', data.userId));
         const userData = userDoc.exists() ? userDoc.data() : null;
 

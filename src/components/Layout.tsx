@@ -30,12 +30,14 @@ import {
   Edit3,
   Satellite,
   Lock as LockIcon,
-  AlertTriangle
+  AlertTriangle,
+  Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx } from 'clsx';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
+import { useSound } from '../context/SoundContext';
 import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts';
 import { event } from '../utils/analytics';
 import Sidebar from './Sidebar';
@@ -43,12 +45,16 @@ import { Toaster } from 'sonner';
 import GlobalSearch from './GlobalSearch';
 import NotificationCenter from './NotificationCenter';
 import Chatbot from './Chatbot';
+import MobileSimulator from './MobileSimulator';
 
 export default function Layout() {
   useGlobalShortcuts();
+  const { playSound } = useSound();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
+  const isInsideIframe = window.self !== window.top;
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isPendingSecurityVerification, confirmSecurityKey, recordFailedAttempt } = useAuth();
@@ -68,11 +74,21 @@ export default function Layout() {
 
   const activeSubs = userSubscriptions.filter(s => s.isActive);
 
+  const isFirstRender = React.useRef(true);
   // Close mobile sidebar on route change
   useEffect(() => {
     setIsMobileOpen(false);
     setShowProfileMenu(false);
-  }, [location]);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    try {
+      playSound('notification');
+    } catch (err) {
+      console.warn("Navigation sound failed", err);
+    }
+  }, [location.pathname, playSound]);
 
   const handleLogout = () => {
     event({ action: 'logout', category: 'Auth' });
@@ -146,8 +162,21 @@ export default function Layout() {
                     </button>
                     <button
                       type="button"
+                      onClick={async () => {
+                        const success = await confirmSecurityKey('EASY');
+                        if (success) {
+                          setSecurityKeyInput('');
+                          setSecurityError('');
+                        }
+                      }}
+                      className="w-full py-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 font-bold text-xs uppercase tracking-widest rounded-2xl transition-all border border-emerald-500/20"
+                    >
+                      Bypass Key (Easy Login)
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => logout()}
-                      className="w-full py-4 bg-gray-50 text-gray-500 font-bold text-sm uppercase tracking-widest rounded-2xl hover:bg-gray-100 transition-all"
+                      className="w-full py-3 bg-gray-50 text-gray-500 font-bold text-xs uppercase tracking-widest rounded-2xl hover:bg-gray-100 transition-all"
                     >
                       Cancel & Logout
                     </button>
@@ -166,7 +195,7 @@ export default function Layout() {
       </AnimatePresence>
 
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 w-full z-50 glass-panel pl-4 pr-16 py-3 flex justify-between items-center bg-white/80 backdrop-blur-xl border-b border-gray-200/50 shadow-sm">
+      <div className="md:hidden fixed top-0 w-full z-50 glass-panel px-4 py-3 flex justify-between items-center bg-white/80 backdrop-blur-xl border-b border-gray-200/50 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[var(--color-supreme-gold)] to-[var(--color-supreme-gold-light)] flex items-center justify-center shadow-lg shadow-[var(--color-supreme-gold)]/20 transform -rotate-3">
             <Crown className="text-white w-6 h-6" />
@@ -236,6 +265,7 @@ export default function Layout() {
         logout={logout}
         showProfileMenu={showProfileMenu}
         setShowProfileMenu={setShowProfileMenu}
+        onOpenSimulator={() => setIsSimulatorOpen(true)}
       />
 
       {/* Main Content */}
@@ -264,13 +294,13 @@ export default function Layout() {
                        className="group relative flex items-center gap-2 md:gap-3 pr-1"
                      >
                        <div className="text-right hidden sm:block">
-                         <p className="text-[10px] font-black text-gray-900 uppercase tracking-widest leading-none mb-0.5 whitespace-nowrap">{user.name.split(' ')[0]}</p>
+                         <p className="text-[10px] font-black text-gray-900 uppercase tracking-widest leading-none mb-0.5 whitespace-nowrap">{user.name || 'User'}</p>
                          <p className="text-[8px] font-bold text-[var(--color-supreme-gold)] uppercase tracking-[0.2em] leading-none">Online</p>
                        </div>
                        <div className="w-8 h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 rounded-xl md:rounded-2xl overflow-hidden border-2 border-white shadow-md group-hover:scale-105 group-active:scale-95 transition-all">
                          <img 
-                           src={user.avatar || `https://ui-avatars.com/api/?name=${user.name}&background=random`} 
-                           alt={user.name} 
+                           src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=random`} 
+                           alt={user.name || 'User'} 
                            className="w-full h-full object-cover"
                          />
                        </div>
@@ -369,6 +399,25 @@ export default function Layout() {
 
         {/* Chatbot */}
         <Chatbot />
+
+        {/* Floating Desktop Mobile Preview Studio FAB */}
+        {!isInsideIframe && (
+          <div className="fixed bottom-6 right-24 z-40 hidden md:flex items-center">
+            <button
+              onClick={() => setIsSimulatorOpen(true)}
+              className="flex items-center gap-2.5 px-4 py-3.5 bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-neutral-900 rounded-full shadow-[0_15px_30px_rgba(245,158,11,0.35)] hover:shadow-[0_20px_40px_rgba(245,158,11,0.5)] border border-amber-400/30 font-bold text-xs uppercase tracking-wider transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 cursor-pointer group"
+              title="Open Mobile Sandbox Preview"
+            >
+              <Smartphone className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" />
+              <span>Mobile Preview</span>
+            </button>
+          </div>
+        )}
+        <MobileSimulator 
+          isOpen={isSimulatorOpen}
+          onClose={() => setIsSimulatorOpen(false)}
+          initialPath={location.pathname + location.search + location.hash}
+        />
       </div>
     </div>
   );

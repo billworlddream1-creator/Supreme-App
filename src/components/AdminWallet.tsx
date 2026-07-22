@@ -159,11 +159,17 @@ export default function AdminWallet() {
     const qTx = query(
       collection(db, 'admin_transactions'),
       where('fromUid', '==', user.uid),
-      orderBy('createdAt', 'desc'),
       limit(20)
     );
     const unsubscribeTx = onSnapshot(qTx, (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AdminTransaction[]);
+      const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AdminTransaction[];
+      // Sort in memory by createdAt descending
+      txs.sort((a, b) => {
+        const timeA = a.createdAt?.toDate?.()?.getTime() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.createdAt?.toDate?.()?.getTime() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        return timeB - timeA;
+      });
+      setTransactions(txs);
     }, (error) => {
       console.error("Transactions snapshot error:", error);
     });

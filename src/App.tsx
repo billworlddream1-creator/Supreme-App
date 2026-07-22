@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 
 class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
   constructor(props: {children: React.ReactNode}) {
@@ -48,7 +48,7 @@ class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}, {
   }
 }
 
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import { Loader2, Crown, Lock, Clock, AlertCircle, ChevronRight } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -59,6 +59,7 @@ import { AdsProvider } from './context/AdsContext';
 import { SecurityProvider } from './context/SecurityContext';
 import { SoundProvider } from './context/SoundContext';
 import { NetworkProvider } from './context/NetworkContext';
+import { UserStatusProvider } from './context/UserStatusContext';
 import { MonthlyAwardsProvider } from './context/MonthlyAwardsContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ActivityFlashProvider } from './context/ActivityFlashContext';
@@ -69,6 +70,8 @@ import { motion } from 'motion/react';
 import AnalyticsTracker from './components/AnalyticsTracker';
 import BirthdayGreeting from './components/BirthdayGreeting';
 import T10RewardTrigger from './components/T10RewardTrigger';
+import DailyBonus from './components/DailyBonus';
+import StreakAnalysisArea from './components/StreakAnalysisArea';
 
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
@@ -106,6 +109,7 @@ const HardwareMining = lazy(() => import('./pages/HardwareMining'));
 const SupremeHubOfTreasures = lazy(() => import('./pages/SupremeHubOfTreasures'));
 const Appeal = lazy(() => import('./pages/Appeal'));
 const AppManual = lazy(() => import('./pages/AppManual'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 // Loading Fallback
 const PageLoader = () => (
@@ -267,6 +271,386 @@ function AuthLoader({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Security Session Timeout Warning Modal
+function SessionTimeoutWarner() {
+  const { user, logout } = useAuth();
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [showWarning, setShowWarning] = useState(false);
+
+  // Default session duration: 15 minutes (900 seconds)
+  const SESSION_DURATION_MS = 15 * 60 * 1000;
+  const WARNING_THRESHOLD_SEC = 100;
+
+  // Ref to track the expiration timestamp and throttle activity events
+  const expiresAtRef = React.useRef<number>(0);
+  const lastActivityRef = React.useRef<number>(0);
+
+  useEffect(() => {
+    if (!user) {
+      localStorage.removeItem('supreme_session_expires_at');
+      setTimeLeft(null);
+      setShowWarning(false);
+      return;
+    }
+
+    const saved = localStorage.getItem('supreme_session_expires_at');
+    expiresAtRef.current = saved ? parseInt(saved) : Date.now() + SESSION_DURATION_MS;
+    if (!saved) {
+      localStorage.setItem('supreme_session_expires_at', expiresAtRef.current.toString());
+    }
+
+    // Automatically extend session expiration on user activity
+    const handleActivity = () => {
+      const now = Date.now();
+      // Throttle activity updates to once every 5 seconds to reduce local storage overhead
+      if (now - lastActivityRef.current > 5000) {
+        const newExpiresAt = now + SESSION_DURATION_MS;
+        expiresAtRef.current = newExpiresAt;
+        localStorage.setItem('supreme_session_expires_at', newExpiresAt.toString());
+        lastActivityRef.current = now;
+        setShowWarning(false);
+      }
+    };
+
+    // Add activity event listeners on the document level
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll'];
+    activityEvents.forEach(evt => {
+      document.addEventListener(evt, handleActivity, { passive: true });
+    });
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remainingMs = expiresAtRef.current - now;
+      const remainingSec = Math.max(0, Math.ceil(remainingMs / 1000));
+
+      setTimeLeft(remainingSec);
+
+      if (remainingSec <= WARNING_THRESHOLD_SEC && remainingSec > 0) {
+        setShowWarning(true);
+      } else if (remainingSec <= 0) {
+        clearInterval(interval);
+        setShowWarning(false);
+        localStorage.removeItem('supreme_session_expires_at');
+        logout();
+      } else {
+        setShowWarning(false);
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      activityEvents.forEach(evt => {
+        document.removeEventListener(evt, handleActivity);
+      });
+    };
+  }, [user, logout]);
+
+  const handleExtend = () => {
+    const newExpiresAt = Date.now() + SESSION_DURATION_MS;
+    expiresAtRef.current = newExpiresAt;
+    localStorage.setItem('supreme_session_expires_at', newExpiresAt.toString());
+    setTimeLeft(15 * 60);
+    setShowWarning(false);
+  };
+
+  const handleLogout = async () => {
+    localStorage.removeItem('supreme_session_expires_at');
+    setShowWarning(false);
+    await logout();
+  };
+
+  if (!showWarning || timeLeft === null) return null;
+
+  return (
+    <div 
+      id="session-timeout-modal-container"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+    >
+      <div 
+        id="session-timeout-modal-content"
+        className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 text-white rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500">
+            <Clock className="w-6 h-6 animate-pulse" />
+          </div>
+          <div>
+            <h3 id="session-timeout-title" className="font-display font-bold text-lg text-amber-500">
+              Session Expiration Warning
+            </h3>
+            <p className="text-xs text-zinc-400">Security Inactivity Protocol</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-zinc-300 leading-relaxed mb-6">
+          For your security, your authenticated session is about to expire. You will be automatically logged out in{' '}
+          <span id="session-timeout-countdown" className="font-mono font-bold text-amber-500 text-lg">
+            {timeLeft}
+          </span>{' '}
+          seconds if no action is taken.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            id="session-timeout-extend-button"
+            onClick={handleExtend}
+            className="flex-1 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl transition-all shadow-md shadow-amber-500/10"
+          >
+            Extend Session
+          </button>
+          <button
+            id="session-timeout-logout-button"
+            onClick={handleLogout}
+            className="flex-1 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl border border-zinc-700 transition-all"
+          >
+            Logout Now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 1. Feature Idle Monitoring: Redirection to home dashboard after 1000s idle, warning for 800s
+function FeatureIdleMonitor() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [showWarning, setShowWarning] = useState(false);
+  const [countdown, setCountdown] = useState<number>(800);
+
+  const IDLE_THRESHOLD = 1000; // seconds
+  const WARNING_DURATION = 800; // seconds
+
+  const lastHoverRef = React.useRef<number>(Date.now());
+
+  const isFeaturePage = location.pathname !== '/' && location.pathname !== '/login';
+
+  useEffect(() => {
+    if (!user || !isFeaturePage) {
+      setShowWarning(false);
+      return;
+    }
+
+    lastHoverRef.current = Date.now();
+    setShowWarning(false);
+    setCountdown(WARNING_DURATION);
+
+    const handleHover = () => {
+      lastHoverRef.current = Date.now();
+      if (showWarning) {
+        setShowWarning(false);
+        setCountdown(WARNING_DURATION);
+      }
+    };
+
+    // Listen to mousemove / mouseover/ mouseenter to capture user hovering/activity on the feature
+    window.addEventListener('mousemove', handleHover, { passive: true });
+    window.addEventListener('mouseover', handleHover, { passive: true });
+    window.addEventListener('mouseenter', handleHover, { passive: true });
+
+    const interval = setInterval(() => {
+      const secondsIdle = (Date.now() - lastHoverRef.current) / 1000;
+
+      if (secondsIdle >= IDLE_THRESHOLD) {
+        setShowWarning(true);
+        const remaining = Math.max(0, Math.ceil(WARNING_DURATION - (secondsIdle - IDLE_THRESHOLD)));
+        setCountdown(remaining);
+
+        if (remaining <= 0) {
+          clearInterval(interval);
+          setShowWarning(false);
+          navigate('/');
+        }
+      } else {
+        setShowWarning(false);
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('mousemove', handleHover);
+      window.removeEventListener('mouseover', handleHover);
+      window.removeEventListener('mouseenter', handleHover);
+    };
+  }, [user, isFeaturePage, showWarning, navigate]);
+
+  const handleKeepExploring = () => {
+    lastHoverRef.current = Date.now();
+    setShowWarning(false);
+    setCountdown(WARNING_DURATION);
+  };
+
+  if (!showWarning) return null;
+
+  return (
+    <div 
+      id="feature-idle-modal-container"
+      className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+    >
+      <div 
+        id="feature-idle-modal-content"
+        className="relative w-full max-w-md bg-zinc-950 border border-amber-500/30 text-white rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500">
+            <AlertCircle className="w-6 h-6 animate-bounce" />
+          </div>
+          <div>
+            <h3 id="feature-idle-title" className="font-display font-bold text-lg text-amber-400">
+              Feature Idle Warning
+            </h3>
+            <p className="text-xs text-zinc-400">Supreme Security Protocol</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-zinc-300 leading-relaxed mb-6">
+          This feature has been idle for <span className="font-bold text-amber-400">1,000</span> seconds without mouse hovering. You will be redirected back to the home dashboard in{' '}
+          <span id="feature-idle-countdown" className="font-mono font-bold text-amber-400 text-lg">
+            {countdown}
+          </span>{' '}
+          seconds.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            id="feature-idle-extend-button"
+            onClick={handleKeepExploring}
+            className="flex-1 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold rounded-xl transition-all shadow-md shadow-amber-500/10"
+          >
+            Keep Exploring
+          </button>
+          <button
+            id="feature-idle-home-button"
+            onClick={() => navigate('/')}
+            className="flex-1 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl border border-zinc-700 transition-all"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 2. Dashboard Idle Monitoring: Logs the user off after 10,000s idle, warning for 8,000s
+function DashboardIdleMonitor() {
+  const { user, logout } = useAuth();
+  const [showWarning, setShowWarning] = useState(false);
+  const [countdown, setCountdown] = useState<number>(8000);
+
+  const IDLE_THRESHOLD = 10000; // seconds
+  const WARNING_DURATION = 8000; // seconds
+
+  const lastActivityRef = React.useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (!user) {
+      setShowWarning(false);
+      return;
+    }
+
+    lastActivityRef.current = Date.now();
+    setShowWarning(false);
+    setCountdown(WARNING_DURATION);
+
+    const handleActivity = () => {
+      lastActivityRef.current = Date.now();
+      if (showWarning) {
+        setShowWarning(false);
+        setCountdown(WARNING_DURATION);
+      }
+    };
+
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'mouseover', 'mouseenter'];
+    activityEvents.forEach(evt => {
+      document.addEventListener(evt, handleActivity, { passive: true });
+    });
+
+    const interval = setInterval(() => {
+      const secondsIdle = (Date.now() - lastActivityRef.current) / 1000;
+
+      if (secondsIdle >= IDLE_THRESHOLD) {
+        setShowWarning(true);
+        const remaining = Math.max(0, Math.ceil(WARNING_DURATION - (secondsIdle - IDLE_THRESHOLD)));
+        setCountdown(remaining);
+
+        if (remaining <= 0) {
+          clearInterval(interval);
+          setShowWarning(false);
+          logout();
+        }
+      } else {
+        setShowWarning(false);
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      activityEvents.forEach(evt => {
+        document.removeEventListener(evt, handleActivity);
+      });
+    };
+  }, [user, showWarning, logout]);
+
+  const handleContinue = () => {
+    lastActivityRef.current = Date.now();
+    setShowWarning(false);
+    setCountdown(WARNING_DURATION);
+  };
+
+  if (!showWarning) return null;
+
+  return (
+    <div 
+      id="dashboard-idle-modal-container"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-lg p-4"
+    >
+      <div 
+        id="dashboard-idle-modal-content"
+        className="relative w-full max-w-md bg-zinc-950 border border-red-500/30 text-white rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200"
+      >
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500">
+            <Clock className="w-6 h-6 animate-pulse" />
+          </div>
+          <div>
+            <h3 id="dashboard-idle-title" className="font-display font-bold text-lg text-red-400">
+              Dashboard Idle Preservation
+            </h3>
+            <p className="text-xs text-zinc-400">Extreme Security Protocol</p>
+          </div>
+        </div>
+
+        <p className="text-sm text-zinc-300 leading-relaxed mb-6">
+          Your dashboard session has been idle for <span className="font-bold text-red-400">10,000</span> seconds. You will be automatically logged off for safety preservation in{' '}
+          <span id="dashboard-idle-countdown" className="font-mono font-bold text-red-400 text-lg">
+            {countdown}
+          </span>{' '}
+          seconds.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            id="dashboard-idle-extend-button"
+            onClick={handleContinue}
+            className="flex-1 px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all shadow-md shadow-red-500/10"
+          >
+            Resume Session
+          </button>
+          <button
+            id="dashboard-idle-logout-button"
+            onClick={logout}
+            className="flex-1 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-xl border border-zinc-700 transition-all"
+          >
+            Sign Out Now
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <GlobalErrorBoundary>
@@ -275,6 +659,7 @@ export default function App() {
           <AuthLoader>
           <FeatureControlProvider>
             <NetworkProvider>
+            <UserStatusProvider>
             <NotificationProvider>
               <ActivityFlashProvider>
                 <AdminProvider>
@@ -288,13 +673,18 @@ export default function App() {
                                 <AnalyticsTracker />
                                 <BirthdayGreeting />
                                 <T10RewardTrigger />
+                                <DailyBonus />
+                                <StreakAnalysisArea mode="popup" />
+                                <SessionTimeoutWarner />
+                                <FeatureIdleMonitor />
+                                <DashboardIdleMonitor />
                                 <Suspense fallback={<PageLoader />}>
                                   <Routes>
                                     <Route path="/" element={<Layout />}>
                                       <Route path="login" element={<Login />} />
-                                      <Route index element={<Home />} />
+                                      <Route index element={<ProtectedRoute><Home /></ProtectedRoute>} />
                                       <Route path="network" element={<ProtectedRoute><FeatureProtectedRoute featureId="network"><Network /></FeatureProtectedRoute></ProtectedRoute>} />
-                                      <Route path="market" element={<FeatureProtectedRoute featureId="market"><Market /></FeatureProtectedRoute>} />
+                                      <Route path="market" element={<ProtectedRoute><FeatureProtectedRoute featureId="market"><Market /></FeatureProtectedRoute></ProtectedRoute>} />
                                       <Route path="dealer-dashboard" element={<ProtectedRoute><DealerRoute><DealerDashboard /></DealerRoute></ProtectedRoute>} />
                                       <Route path="media" element={<PremiumRoute feature="media"><FeatureProtectedRoute featureId="media"><Media /></FeatureProtectedRoute></PremiumRoute>} />
                                       <Route path="discover" element={<ProtectedRoute><FeatureProtectedRoute featureId="discover"><Discover /></FeatureProtectedRoute></ProtectedRoute>} />
@@ -325,7 +715,8 @@ export default function App() {
                                       <Route path="supreme-nobles" element={<ProtectedRoute><SupremeNobles /></ProtectedRoute>} />
                                       <Route path="supreme-treasures" element={<ProtectedRoute><SupremeHubOfTreasures /></ProtectedRoute>} />
                                       <Route path="appeal" element={<ProtectedRoute><Appeal /></ProtectedRoute>} />
-                                      <Route path="manual" element={<AppManual />} />
+                                      <Route path="manual" element={<ProtectedRoute><AppManual /></ProtectedRoute>} />
+                                      <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                                     </Route>
                                   </Routes>
                                 </Suspense>
@@ -339,6 +730,7 @@ export default function App() {
                 </AdminProvider>
               </ActivityFlashProvider>
             </NotificationProvider>
+            </UserStatusProvider>
           </NetworkProvider>
           </FeatureControlProvider>
         </AuthLoader>
