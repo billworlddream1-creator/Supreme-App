@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import AdminGreetingControl from '../components/AdminGreetingControl';
 import { HashRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { 
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  Sliders,
   Radio,
   Users, 
   TrendingUp, 
@@ -96,7 +98,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useFeatureControl, FeatureId } from '../context/FeatureControlContext';
 import { SUPREME_FEATURES, SupremeFeature } from '../constants/featureIds';
-import { Timestamp, query, collection, where, orderBy, onSnapshot, doc, updateDoc, getDoc, getDocs, addDoc } from 'firebase/firestore';
+import { Timestamp, query, collection, where, orderBy, onSnapshot, doc, updateDoc, getDoc, getDocs, addDoc, limit } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import AdminMiningManager from '../components/AdminMiningManager';
 import AdminRewards from '../components/AdminRewards';
@@ -112,8 +114,11 @@ import AdminStreakTracker from '../components/AdminStreakTracker';
 import DashboardStats from '../components/DashboardStats';
 import AdminSubscriptionManager from '../components/AdminSubscriptionManager';
 import AdminAuditLogs from '../components/AdminAuditLogs';
+import RecentActivityLog from '../components/RecentActivityLog';
+import { logRecentActivity } from '../services/activityLogger';
 import StreakAnalysisArea from '../components/StreakAnalysisArea';
 import UserGrowthAnalytics from '../components/UserGrowthAnalytics';
+import AdminSuperShortsViolations from '../components/AdminSuperShortsViolations';
 
 interface AnalyticsData {
   daily: number[];
@@ -275,6 +280,16 @@ function FeatureControlAdmin() {
       }
 
       await updateDoc(userRef, { lockedFeatures });
+      await logRecentActivity({
+        category: 'feature_access',
+        action: lockedFeatures[featureId] ? `Feature Locked: ${featureId}` : `Feature Unlocked: ${featureId}`,
+        details: `Administrator modified access status for feature "${featureId}" on user "${currentUser.name || currentUser.email}". Reason: ${lockReason}.`,
+        targetUser: `${currentUser.name} (${currentUser.email})`,
+        targetUserId: currentUser.id,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: lockedFeatures[featureId] ? 'high' : 'low',
+        status: lockedFeatures[featureId] ? 'warning' : 'success'
+      });
       toast.success(`Feature ${featureId} status updated for ${currentUser.name}`);
     } catch (error) {
       console.error('Error updating feature status:', error);
@@ -2009,7 +2024,7 @@ export default function AdminDashboard() {
     if (!user) return;
     try {
       // 1. User Transactions
-      const qUserTx = collection(db, 'transactions');
+      const qUserTx = query(collection(db, 'transactions'), limit(100));
       const unsubUserTx = onSnapshot(qUserTx, (snapshot) => {
         const txs = snapshot.docs.map(doc => {
           const data = doc.data();
@@ -2034,7 +2049,7 @@ export default function AdminDashboard() {
       });
 
       // 2. Admin Transactions
-      const qAdminTx = collection(db, 'admin_transactions');
+      const qAdminTx = query(collection(db, 'admin_transactions'), limit(100));
       const unsubAdminTx = onSnapshot(qAdminTx, (snapshot) => {
         const txs = snapshot.docs.map(doc => {
           const data = doc.data();
@@ -2258,6 +2273,7 @@ export default function AdminDashboard() {
     { id: 'mining_management', label: 'Mining Management', icon: Pickaxe },
     { id: 'admin_management', label: 'Admin Management', icon: UserCheck },
     { id: 'security', label: 'Security & Logs', icon: Shield },
+    { id: 'recent_activity', label: 'Recent Activity Log', icon: Activity },
     { id: 'audit_logs', label: 'Admin Audit Logs', icon: ClipboardList },
     { id: 'chat', label: 'Admin Chat', icon: MessageSquare },
     { id: 'settings', label: 'System Settings', icon: Settings },
@@ -2271,11 +2287,17 @@ export default function AdminDashboard() {
     { id: 'appeal_analytics', label: 'Appeal Analytics', icon: Zap },
     { id: 'treasure_tracking', label: 'Treasure Tracking', icon: Briefcase },
     { id: 'connectivity_tracking', label: 'Connectivity Tracking', icon: Wifi },
+    { id: 'greeting_control', label: 'Greeting & Mood Control', icon: Sliders },
+    { id: 'super_shorts_violations', label: 'Super Shorts Violations', icon: ShieldAlert },
     { id: 'supreme_cmd', label: 'Supreme CMD', icon: Terminal },
   ];
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'super_shorts_violations':
+        return <AdminSuperShortsViolations />;
+      case 'greeting_control':
+        return <AdminGreetingControl />;
       case 'earning_rates':
         return <EarningRatesAdmin />;
       case 'feature_control':
@@ -2445,48 +2467,8 @@ export default function AdminDashboard() {
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white/5 backdrop-blur-xl rounded-[2.5rem] border border-white/10 overflow-hidden"
             >
-              <div className="p-8 border-b border-white/5 flex justify-between items-center">
-                <h3 className="text-xl font-bold text-white">Recent Platform Activity</h3>
-                <button className="text-sm font-bold text-[var(--color-supreme-gold)] hover:underline">View All</button>
-              </div>
-              <div className="overflow-x-auto no-scrollbar">
-                <table className="w-full text-left min-w-[800px]">
-                  <thead>
-                    <tr className="bg-white/5">
-                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">User</th>
-                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Action</th>
-                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Status</th>
-                      <th className="px-8 py-4 text-[10px] font-bold text-gray-500 uppercase tracking-[0.2em]">Time</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {[
-                      {id: 'act-1', user: 'Alex Rivera', action: 'New Ad Campaign Created', status: 'Success', time: '2 mins ago' },
-                      {id: 'act-2', user: 'Sarah Chen', action: 'Subscription Upgraded to Pro', status: 'Success', time: '15 mins ago' },
-                      {id: 'act-3', user: 'Marcus Wright', action: 'Product Listed in Market', status: 'Pending', time: '45 mins ago' },
-                      {id: 'act-4', user: 'Elena Gomez', action: 'Video Uploaded to Vibes', status: 'Success', time: '1 hour ago' },
-                    ].map((row) => (
-                      <tr key={row.id} className="hover:bg-white/5 transition-colors group">
-                        <td className="px-8 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-white/10 border border-white/10 group-hover:border-[var(--color-supreme-gold)]/50 transition-all" />
-                            <span className="font-bold text-white">{row.user}</span>
-                          </div>
-                        </td>
-                        <td className="px-8 py-4 text-sm text-gray-400 font-medium">{row.action}</td>
-                        <td className="px-8 py-4">
-                          <span className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${row.status === 'Success' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-orange-500/10 text-orange-500 border border-orange-500/20'}`}>
-                            {row.status}
-                          </span>
-                        </td>
-                        <td className="px-8 py-4 text-sm text-gray-500 font-medium">{row.time}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <RecentActivityLog isCompact={true} onViewAll={() => setActiveTab('recent_activity')} />
             </motion.div>
           </div>
         );
@@ -4746,6 +4728,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         );
+      case 'recent_activity':
+        return <RecentActivityLog isCompact={false} />;
       case 'audit_logs':
         return <AdminAuditLogs />;
       case 'chat':

@@ -29,6 +29,21 @@ import {
   MessageCircle,
   Edit2,
   Trash2,
+  Music,
+  Video,
+  Calendar,
+  DollarSign,
+  CheckCircle2,
+  Sparkles,
+  Zap,
+  Filter,
+  Search,
+  ChevronRight,
+  ShieldAlert,
+  Layers,
+  Radio,
+  Play,
+  Film,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams } from "react-router-dom";
@@ -38,6 +53,19 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import OrderTracking from "../components/OrderTracking";
 import { useWallet } from "../context/WalletContext";
 import InvestmentGrowthChart from "../components/InvestmentGrowthChart";
+import RenewalEarningsForecastChart from "../components/RenewalEarningsForecastChart";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 import { getRankData, RANK_BENEFITS } from "../constants/ranks";
 import {
   collection,
@@ -45,6 +73,8 @@ import {
   where,
   orderBy,
   onSnapshot,
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -52,6 +82,90 @@ const AVATAR_STYLES = Array.from(
   { length: 100 },
   (_, i) => `https://picsum.photos/seed/avatar${i}/150`,
 );
+
+const DEMO_PROMOTED_SOUNDS = [
+  {
+    id: "demo-snd-101",
+    title: "Afrobeat Supreme Vibe",
+    artist: "Kofi Mastermind",
+    category: "Afrobeat / Percussion",
+    coverImage: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=400&q=80",
+    uploadedAt: "2026-02-15",
+    earningExpiresAt: new Date(Date.now() + 198 * 24 * 3600 * 1000).toISOString(),
+    totalRenewalSpent: 0,
+    downloads: 1240,
+    downloadsWhileExpired: 0,
+    usagesCount: 850,
+    usagesWhileExpired: 0,
+  },
+  {
+    id: "demo-snd-102",
+    title: "Cyberpunk Synth Lead 128 BPM",
+    artist: "Neon Pulse",
+    category: "Electronic / Synth",
+    coverImage: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=400&q=80",
+    uploadedAt: "2025-06-10",
+    earningExpiresAt: new Date(Date.now() - 52 * 24 * 3600 * 1000).toISOString(),
+    totalRenewalSpent: 0,
+    downloads: 890,
+    downloadsWhileExpired: 48,
+    usagesCount: 620,
+    usagesWhileExpired: 32,
+  },
+  {
+    id: "demo-snd-103",
+    title: "Deep House Vocal Drop",
+    artist: "Siren Beats",
+    category: "House / EDM",
+    coverImage: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=400&q=80",
+    uploadedAt: "2026-01-01",
+    earningExpiresAt: new Date(Date.now() + 153 * 24 * 3600 * 1000).toISOString(),
+    totalRenewalSpent: 10,
+    downloads: 2150,
+    downloadsWhileExpired: 0,
+    usagesCount: 1420,
+    usagesWhileExpired: 0,
+  }
+];
+
+const DEMO_PROMOTED_SHORTS = [
+  {
+    id: "demo-srt-101",
+    title: "Neon City Tokyo Drift Loop",
+    creatorName: "VisualsByAlex",
+    category: "Cinematic 4K",
+    coverUrl: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80",
+    createdAt: "2026-03-01",
+    earningExpiresAt: new Date(Date.now() + 212 * 24 * 3600 * 1000).toISOString(),
+    totalRenewalSpent: 0,
+    downloads: 1890,
+    downloadsWhileExpired: 0,
+    uses: 1100,
+    usesWhileExpired: 0,
+  },
+  {
+    id: "demo-srt-102",
+    title: "Acoustic Guitar Chill Loop",
+    creatorName: "AcousticStudio",
+    category: "Music Video",
+    coverUrl: "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=400&q=80",
+    createdAt: "2025-05-20",
+    earningExpiresAt: new Date(Date.now() - 73 * 24 * 3600 * 1000).toISOString(),
+    totalRenewalSpent: 0,
+    downloads: 650,
+    downloadsWhileExpired: 35,
+    uses: 410,
+    usesWhileExpired: 20,
+  }
+];
+
+const PROMOTION_RENEWAL_PLANS = [
+  { years: 1, price: 10, label: "1 Year Extension", discount: "Standard Rate", description: "365 days of active monetization ($2.50 / 500 uses) & global promotion." },
+  { years: 2, price: 15, label: "2 Years Extension", discount: "Save 25%", description: "730 days of continuous monetization & priority platform placement." },
+  { years: 3, price: 25, label: "3 Years Extension", discount: "Save 16%", description: "1,095 days of active earnings & algorithmic feed promotion." },
+  { years: 4, price: 35, label: "4 Years Extension", discount: "Save 12%", description: "1,460 days of extended monetization validity for content creators." },
+  { years: 5, price: 45, label: "5 Years Extension", discount: "Best Value - Save 10%", description: "1,825 days (5 full years) of maximum royalty collection." },
+];
 
 export default function Profile() {
   const { user, updateUser, generateSecurityKey } = useAuth();
@@ -66,10 +180,151 @@ export default function Profile() {
     | "rank"
     | "posts"
     | "orders"
+    | "renewals"
   >("basic");
   const [transactions, setTransactions] = useState<any[]>([]);
   const [userPosts, setUserPosts] = useState<any[]>([]);
   const [isPostsLoading, setIsPostsLoading] = useState(false);
+
+  // Subscription Renewal & Promotions State
+  const [promotedSounds, setPromotedSounds] = useState<any[]>(DEMO_PROMOTED_SOUNDS);
+  const [promotedShorts, setPromotedShorts] = useState<any[]>(DEMO_PROMOTED_SHORTS);
+  const [isPromotionsLoading, setIsPromotionsLoading] = useState(false);
+  const [renewalFilter, setRenewalFilter] = useState<'all' | 'sounds' | 'shorts' | 'expired'>('all');
+  const [renewalSearch, setRenewalSearch] = useState('');
+  const [renewalModalItem, setRenewalModalItem] = useState<{ item: any; type: 'sound' | 'short' } | null>(null);
+
+  useEffect(() => {
+    if (activeTab === "renewals") {
+      setIsPromotionsLoading(true);
+
+      const qSounds = query(collection(db, "super_sounds_promote"));
+      const unsubSounds = onSnapshot(
+        qSounds,
+        (snapshot) => {
+          const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+          if (items.length > 0) {
+            setPromotedSounds(items);
+          } else {
+            setPromotedSounds(DEMO_PROMOTED_SOUNDS);
+          }
+        },
+        (err) => {
+          console.error("Error fetching sounds:", err);
+          setPromotedSounds(DEMO_PROMOTED_SOUNDS);
+        }
+      );
+
+      const qShorts = query(collection(db, "super_shorts"));
+      const unsubShorts = onSnapshot(
+        qShorts,
+        (snapshot) => {
+          const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+          if (items.length > 0) {
+            setPromotedShorts(items);
+          } else {
+            setPromotedShorts(DEMO_PROMOTED_SHORTS);
+          }
+          setIsPromotionsLoading(false);
+        },
+        (err) => {
+          console.error("Error fetching shorts:", err);
+          setPromotedShorts(DEMO_PROMOTED_SHORTS);
+          setIsPromotionsLoading(false);
+        }
+      );
+
+      return () => {
+        unsubSounds();
+        unsubShorts();
+      };
+    }
+  }, [activeTab]);
+
+  const handleProcessRenewal = async (item: any, type: 'sound' | 'short', years: number, cost: number) => {
+    if (balance < cost) {
+      toast.error(`Insufficient wallet balance ($${balance.toFixed(2)})! You need $${cost} for ${years} year(s) renewal.`);
+      return;
+    }
+
+    const success = sendPayment(cost, `Promotion Renewal (${years} yr) - ${item.title}`, "Promotions");
+    if (!success) {
+      toast.error("Payment failed. Please verify your wallet balance.");
+      return;
+    }
+
+    const currentExp = item.earningExpiresAt && new Date(item.earningExpiresAt).getTime() > Date.now()
+      ? new Date(item.earningExpiresAt).getTime()
+      : Date.now();
+    
+    const addedMs = years * 365 * 24 * 3600 * 1000;
+    const newExpiresAt = new Date(currentExp + addedMs).toISOString();
+
+    const updatedFields = {
+      earningExpiresAt: newExpiresAt,
+      totalRenewalSpent: (item.totalRenewalSpent || 0) + cost,
+    };
+
+    try {
+      const collectionName = type === 'sound' ? 'super_sounds_promote' : 'super_shorts';
+      if (item.id && !item.id.startsWith('demo-')) {
+        await updateDoc(doc(db, collectionName, item.id), updatedFields);
+      }
+    } catch (err) {
+      console.error("Firestore update error:", err);
+    }
+
+    if (type === 'sound') {
+      setPromotedSounds((prev) =>
+        prev.map((s) => (s.id === item.id ? { ...s, ...updatedFields } : s))
+      );
+    } else {
+      setPromotedShorts((prev) =>
+        prev.map((s) => (s.id === item.id ? { ...s, ...updatedFields } : s))
+      );
+    }
+
+    setRenewalModalItem(null);
+    toast.success(
+      `🎉 Successfully renewed "${item.title}" for ${years} year(s) ($${cost})! New expiration: ${new Date(newExpiresAt).toLocaleDateString()}.`
+    );
+  };
+
+  const allPromotions = [
+    ...promotedSounds.map((s) => ({
+      ...s,
+      type: 'sound' as const,
+      cover: s.coverImage || s.coverUrl || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=400&q=80",
+      creator: s.artist || s.creatorName || "Content Creator",
+      usageMetric: `${s.downloads || 0} downloads • ${s.usagesCount || 0} uses`,
+      uncreditedMetric: (s.downloadsWhileExpired || 0) + (s.usagesWhileExpired || 0),
+    })),
+    ...promotedShorts.map((s) => ({
+      ...s,
+      type: 'short' as const,
+      cover: s.coverUrl || s.coverImage || "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=400&q=80",
+      creator: s.creatorName || "Content Creator",
+      usageMetric: `${s.downloads || 0} downloads • ${s.uses || 0} uses`,
+      uncreditedMetric: (s.downloadsWhileExpired || 0) + (s.usesWhileExpired || 0),
+    })),
+  ];
+
+  const filteredPromotions = allPromotions.filter((item) => {
+    const isExpired = item.earningExpiresAt ? new Date().getTime() > new Date(item.earningExpiresAt).getTime() : false;
+    if (renewalFilter === 'sounds' && item.type !== 'sound') return false;
+    if (renewalFilter === 'shorts' && item.type !== 'short') return false;
+    if (renewalFilter === 'expired' && !isExpired) return false;
+
+    if (renewalSearch) {
+      const term = renewalSearch.toLowerCase();
+      return (
+        item.title?.toLowerCase().includes(term) ||
+        item.creator?.toLowerCase().includes(term) ||
+        item.category?.toLowerCase().includes(term)
+      );
+    }
+    return true;
+  });
 
   useEffect(() => {
     if (user?.uid) {
@@ -408,6 +663,29 @@ export default function Profile() {
           >
             Rank Benefits
             {activeTab === "rank" && (
+              <motion.div
+                layoutId="activeTab"
+                className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-supreme-gold)]"
+              />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("renewals")}
+            className={clsx(
+              "flex-1 py-4 text-sm font-bold transition-colors relative flex items-center justify-center gap-1.5 px-3 whitespace-nowrap",
+              activeTab === "renewals"
+                ? "text-[var(--color-supreme-gold)]"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50",
+            )}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Subscription Renewal
+            {allPromotions.filter((p) => p.earningExpiresAt && new Date().getTime() > new Date(p.earningExpiresAt).getTime()).length > 0 && (
+              <span className="bg-amber-100 text-amber-800 text-[10px] px-2 py-0.5 rounded-full font-extrabold border border-amber-200">
+                {allPromotions.filter((p) => p.earningExpiresAt && new Date().getTime() > new Date(p.earningExpiresAt).getTime()).length} Expired
+              </span>
+            )}
+            {activeTab === "renewals" && (
               <motion.div
                 layoutId="activeTab"
                 className="absolute bottom-0 left-0 right-0 h-0.5 bg-[var(--color-supreme-gold)]"
@@ -1833,6 +2111,447 @@ export default function Profile() {
                 exit={{ opacity: 0, y: -10 }}
               >
                 <OrderTracking />
+              </motion.div>
+            )}
+
+            {activeTab === "renewals" && (
+              <motion.div
+                key="renewals"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-8"
+              >
+                {/* Banner Header */}
+                <div className="bg-gradient-to-br from-gray-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-indigo-500/30 space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <span className="px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-bold uppercase tracking-wider inline-flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        Content Creator Monetization Hub
+                      </span>
+                      <h2 className="text-2xl sm:text-3xl font-extrabold mt-2 text-white">
+                        Song & Clip Promotion Subscription Renewal
+                      </h2>
+                      <p className="text-gray-300 text-sm mt-1 max-w-2xl leading-relaxed">
+                        All promoted music tracks and video clips earn rewards ($2.50 per 500 uses) for <strong>1 full year (365 days)</strong> per track. Monitor expiration timelines, view uncredited activity, and renew billing tiers (1-5 years) to ensure uninterrupted monetization!
+                      </p>
+                    </div>
+
+                    <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-right shrink-0">
+                      <div className="text-xs text-gray-300 font-medium">Wallet Balance</div>
+                      <div className="text-2xl font-black text-amber-400 mt-0.5">${balance.toFixed(2)}</div>
+                      <button
+                        onClick={() => (window.location.href = "/#/wallet")}
+                        className="text-[11px] font-bold text-amber-300 hover:underline mt-1 block ml-auto"
+                      >
+                        + Add Funds
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pricing Matrix Badges */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pt-2">
+                    {PROMOTION_RENEWAL_PLANS.map((plan) => (
+                      <div
+                        key={plan.years}
+                        className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl p-3.5 text-center transition-all flex flex-col justify-between"
+                      >
+                        <div>
+                          <span className="px-2 py-0.5 rounded-md bg-purple-500/30 text-purple-200 text-[10px] font-bold uppercase">
+                            {plan.discount}
+                          </span>
+                          <div className="text-base font-black text-amber-300 mt-2">
+                            {plan.years} Year{plan.years > 1 ? "s" : ""}
+                          </div>
+                          <div className="text-xl font-extrabold text-white mt-0.5">${plan.price}</div>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-2 leading-tight">{plan.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recharts Predictive Earnings & Renewal Forecast */}
+                <RenewalEarningsForecastChart
+                  promotions={allPromotions}
+                  walletBalance={balance}
+                  onOpenRenewalModal={(item) =>
+                    setRenewalModalItem({
+                      item,
+                      type: item.type,
+                    })
+                  }
+                />
+
+                {/* Quick Metrics Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      Active Monetized
+                    </div>
+                    <div className="text-2xl font-black text-emerald-600 mt-1">
+                      {allPromotions.filter((p) => !p.earningExpiresAt || new Date().getTime() <= new Date(p.earningExpiresAt).getTime()).length}
+                    </div>
+                    <div className="text-[11px] text-emerald-700 font-medium mt-1">
+                      Earning $0.005 / download or use
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-amber-600" />
+                      Expired / Paused
+                    </div>
+                    <div className="text-2xl font-black text-amber-600 mt-1">
+                      {allPromotions.filter((p) => p.earningExpiresAt && new Date().getTime() > new Date(p.earningExpiresAt).getTime()).length}
+                    </div>
+                    <div className="text-[11px] text-amber-700 font-medium mt-1">
+                      Renewal needed to resume earnings
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <DollarSign className="w-4 h-4 text-purple-600" />
+                      Renewal Invested
+                    </div>
+                    <div className="text-2xl font-black text-purple-600 mt-1">
+                      ${allPromotions.reduce((acc, curr) => acc + (curr.totalRenewalSpent || 0), 0)}
+                    </div>
+                    <div className="text-[11px] text-purple-700 font-medium mt-1">
+                      Spent extending promotions
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      Uncredited Activity
+                    </div>
+                    <div className="text-2xl font-black text-rose-600 mt-1">
+                      {allPromotions.reduce((acc, curr) => acc + (curr.uncreditedMetric || 0), 0)}
+                    </div>
+                    <div className="text-[11px] text-rose-700 font-medium mt-1">
+                      Downloads/uses during expired period
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recharts Revenue & Renewal Forecast Visualization */}
+                <PromotionEarningsForecast promotions={allPromotions} />
+
+                {/* Filter & Search Bar */}
+                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
+                    <button
+                      onClick={() => setRenewalFilter("all")}
+                      className={clsx(
+                        "px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shrink-0",
+                        renewalFilter === "all"
+                          ? "bg-slate-900 text-white shadow-md"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      All Promotions ({allPromotions.length})
+                    </button>
+                    <button
+                      onClick={() => setRenewalFilter("sounds")}
+                      className={clsx(
+                        "px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shrink-0",
+                        renewalFilter === "sounds"
+                          ? "bg-purple-600 text-white shadow-md"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      <Music className="w-3.5 h-3.5" />
+                      Songs & Audio ({allPromotions.filter((p) => p.type === "sound").length})
+                    </button>
+                    <button
+                      onClick={() => setRenewalFilter("shorts")}
+                      className={clsx(
+                        "px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shrink-0",
+                        renewalFilter === "shorts"
+                          ? "bg-indigo-600 text-white shadow-md"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      <Video className="w-3.5 h-3.5" />
+                      Video Clips ({allPromotions.filter((p) => p.type === "short").length})
+                    </button>
+                    <button
+                      onClick={() => setRenewalFilter("expired")}
+                      className={clsx(
+                        "px-4 py-2 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 shrink-0",
+                        renewalFilter === "expired"
+                          ? "bg-amber-500 text-white shadow-md"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      <Clock className="w-3.5 h-3.5" />
+                      Expired / Needs Renewal (
+                      {
+                        allPromotions.filter(
+                          (p) =>
+                            p.earningExpiresAt &&
+                            new Date().getTime() > new Date(p.earningExpiresAt).getTime()
+                        ).length
+                      }
+                      )
+                    </button>
+                  </div>
+
+                  <div className="relative w-full sm:w-64">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={renewalSearch}
+                      onChange={(e) => setRenewalSearch(e.target.value)}
+                      placeholder="Search by title or artist..."
+                      className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Promotion Cards Grid */}
+                {isPromotionsLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20 space-y-3">
+                    <RefreshCw className="w-8 h-8 text-[var(--color-supreme-gold)] animate-spin" />
+                    <p className="text-gray-500 font-medium text-sm">Loading active song & clip promotions...</p>
+                  </div>
+                ) : filteredPromotions.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredPromotions.map((item) => {
+                      const isExpired = item.earningExpiresAt
+                        ? new Date().getTime() > new Date(item.earningExpiresAt).getTime()
+                        : false;
+                      const daysRemaining = item.earningExpiresAt
+                        ? Math.ceil(
+                            (new Date(item.earningExpiresAt).getTime() - new Date().getTime()) /
+                              (1000 * 3600 * 24)
+                          )
+                        : 365;
+
+                      const clampedDays = Math.max(0, Math.min(365, daysRemaining));
+                      const pctRemaining = Math.round((clampedDays / 365) * 100);
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-all overflow-hidden p-5 space-y-4 flex flex-col justify-between"
+                        >
+                          <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0 relative">
+                                <img src={item.cover} alt={item.title} className="w-full h-full object-cover" />
+                                <div className="absolute top-1 left-1 p-1 rounded-md bg-black/60 text-white">
+                                  {item.type === "sound" ? (
+                                    <Music className="w-3 h-3 text-purple-300" />
+                                  ) : (
+                                    <Video className="w-3 h-3 text-indigo-300" />
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                  <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 text-[10px] font-bold uppercase">
+                                    {item.type === "sound" ? "🎵 Song / Sound" : "🎬 Video Clip"}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 font-mono">
+                                    {item.category}
+                                  </span>
+                                </div>
+
+                                <h4 className="font-extrabold text-gray-900 text-base line-clamp-1">
+                                  {item.title}
+                                </h4>
+                                <p className="text-xs text-gray-500">By {item.creator}</p>
+                              </div>
+                            </div>
+
+                            {/* Status Badge & Expiration Info */}
+                            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-2 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-gray-500 font-medium">Monetization Status:</span>
+                                {isExpired ? (
+                                  <span className="px-2.5 py-1 rounded-lg bg-amber-100 border border-amber-200 text-amber-900 font-extrabold inline-flex items-center gap-1 text-[11px]">
+                                    <Clock className="w-3 h-3 text-amber-600 animate-pulse" />
+                                    Earnings Paused (Expired {Math.abs(daysRemaining)}d ago)
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-1 rounded-lg bg-emerald-100 border border-emerald-200 text-emerald-900 font-bold inline-flex items-center gap-1 text-[11px]">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    Active Monetization ({daysRemaining}d left)
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Progress Bar */}
+                              <div>
+                                <div className="flex justify-between text-[10px] text-gray-400 font-mono mb-1">
+                                  <span>365-Day Validity Cycle</span>
+                                  <span>{isExpired ? "0% Left" : `${pctRemaining}% Time Remaining`}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                                  <div
+                                    className={clsx(
+                                      "h-full transition-all duration-500 rounded-full",
+                                      isExpired
+                                        ? "bg-amber-500"
+                                        : pctRemaining > 30
+                                        ? "bg-emerald-500"
+                                        : "bg-amber-500"
+                                    )}
+                                    style={{ width: `${isExpired ? 100 : pctRemaining}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1 text-[11px] text-gray-500">
+                                <span>
+                                  Expiration Date:{" "}
+                                  <strong className="text-gray-900">
+                                    {item.earningExpiresAt
+                                      ? new Date(item.earningExpiresAt).toLocaleDateString()
+                                      : "1 Year Default"}
+                                  </strong>
+                                </span>
+                                <span>
+                                  Renewal Spent:{" "}
+                                  <strong className="text-purple-700">${item.totalRenewalSpent || 0}</strong>
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Metrics */}
+                            <div className="flex items-center justify-between text-xs text-gray-600 pt-1">
+                              <span className="font-medium">{item.usageMetric}</span>
+                              {item.uncreditedMetric > 0 && (
+                                <span className="text-rose-600 font-bold">
+                                  ⚠️ {item.uncreditedMetric} uncredited uses while expired
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Renew Now Action Button */}
+                          <button
+                            onClick={() =>
+                              setRenewalModalItem({
+                                item,
+                                type: item.type,
+                              })
+                            }
+                            className="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold rounded-xl text-xs shadow-sm flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Renew Now ($10 - $45 Tiers)
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-16 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 space-y-3">
+                    <Music className="w-10 h-10 text-gray-400 mx-auto" />
+                    <h4 className="font-bold text-gray-800 text-base">No promotions found</h4>
+                    <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                      No song or video clip promotions match your filter. Upload songs or clips in Super Sounds or Super Shorts to begin earning!
+                    </p>
+                  </div>
+                )}
+
+                {/* Renewal Modal */}
+                <AnimatePresence>
+                  {renewalModalItem && (
+                    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                      <motion.div
+                        initial={{ scale: 0.95, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.95, opacity: 0 }}
+                        className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-gray-100 space-y-6"
+                      >
+                        <div className="flex justify-between items-start border-b border-gray-100 pb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-3 bg-emerald-100 text-emerald-700 rounded-2xl">
+                              <RefreshCw className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+                                Subscription Renewal Billing
+                              </span>
+                              <h3 className="text-xl font-extrabold text-gray-900">
+                                {renewalModalItem.item.title}
+                              </h3>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Creator: {renewalModalItem.item.creator} • Type:{" "}
+                                {renewalModalItem.type === "sound" ? "Song Audio Track" : "Video Short Clip"}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setRenewalModalItem(null)}
+                            className="text-gray-400 hover:text-gray-600 text-sm font-bold"
+                          >
+                            ✕
+                          </button>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900 space-y-1">
+                          <div className="font-extrabold flex items-center gap-1.5">
+                            <Clock className="w-4 h-4 text-amber-600" />
+                            1-Year Content Creator Rule
+                          </div>
+                          <p>
+                            Extending your promotion guarantees $2.50 reward credits per 500 downloads/uses and priority algorithmic promotion across Super Sounds & Super Shorts.
+                          </p>
+                        </div>
+
+                        {/* Select Billing Tier */}
+                        <div className="space-y-3">
+                          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                            Select Renewal Billing Tier (1-5 Years):
+                          </label>
+
+                          <div className="grid grid-cols-1 gap-2.5">
+                            {PROMOTION_RENEWAL_PLANS.map((plan) => (
+                              <button
+                                key={plan.years}
+                                onClick={() => {
+                                  const target = renewalModalItem;
+                                  handleProcessRenewal(target.item, target.type, plan.years, plan.price);
+                                }}
+                                className="w-full p-4 rounded-2xl border border-gray-200 hover:border-emerald-500 hover:bg-emerald-50/50 transition-all text-left flex items-center justify-between group"
+                              >
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-extrabold text-gray-900 text-sm">
+                                      {plan.label}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                      {plan.discount}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-0.5">{plan.description}</p>
+                                </div>
+
+                                <div className="text-right">
+                                  <div className="text-lg font-black text-emerald-700">${plan.price}</div>
+                                  <div className="text-[10px] text-gray-400 font-bold group-hover:text-emerald-700">
+                                    Pay via Wallet →
+                                  </div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
           </AnimatePresence>

@@ -7,7 +7,7 @@ import {
   Loader2, Wand2, Palette, X, ThumbsDown, UserPlus, Pin, 
   Trash2, Edit2, Smile, Play, Bell, Check, Search, Plus, 
   Globe, Shield, LayoutGrid, Filter, UserMinus, UserCheck, Clock,
-  Twitter, Linkedin, Facebook, Link, Film, Languages, ChevronDown, AlertTriangle,
+  Twitter, Linkedin, Facebook, Link, Film, Languages, ChevronDown, AlertTriangle, ChevronLeft, ChevronRight, Maximize2, Minimize2, Download, ZoomIn, ZoomOut,
   Music, Tv, Megaphone, Coins, CreditCard, Calendar, ArrowUpRight, CheckCircle2, History, TrendingUp, HelpCircle, FileText, ShoppingBag, DollarSign
 } from 'lucide-react';
 import { 
@@ -38,6 +38,61 @@ const LANGUAGES = [
 
 const initialPosts = [
   {
+    id: 5,
+    author: 'Supreme Gallery',
+    handle: '@supreme_gallery',
+    avatar: 'https://picsum.photos/seed/gallery/150',
+    content: 'Exclusive sneak peek at our upcoming luxury design series! Double-click any image to view in full screen gallery mode. 🎨✨ #Design #Architecture',
+    images: [
+      'https://picsum.photos/seed/arch1/1200/800',
+      'https://picsum.photos/seed/arch2/1200/800',
+      'https://picsum.photos/seed/arch3/1200/800'
+    ],
+    video: null as string | null,
+    likes: 85400,
+    dislikes: 12,
+    comments: 1420,
+    shares: 3200,
+    time: '1h ago',
+    bgColor: 'transparent',
+    transformType: 'normal',
+    category: 'Tech',
+    authorFollowers: 3400000,
+    authorRank: 'Gold',
+    authorRankColor: 'text-amber-500',
+    isPinned: true,
+    privacy: 'public',
+    type: 'image'
+  },
+  {
+    id: 6,
+    author: 'World Traveler',
+    handle: '@traveler',
+    avatar: 'https://picsum.photos/seed/travel/150',
+    content: 'Four stunning landscapes from around the globe. Double-click any photo to enter the full screen image viewer! 🌍📸',
+    images: [
+      'https://picsum.photos/seed/landscape1/1200/800',
+      'https://picsum.photos/seed/landscape2/1200/800',
+      'https://picsum.photos/seed/landscape3/1200/800',
+      'https://picsum.photos/seed/landscape4/1200/800'
+    ],
+    video: null as string | null,
+    likes: 142000,
+    dislikes: 45,
+    comments: 2890,
+    shares: 5400,
+    time: '2h ago',
+    bgColor: 'transparent',
+    transformType: 'normal',
+    category: 'Entertainment',
+    authorFollowers: 920000,
+    authorRank: 'Platinum',
+    authorRankColor: 'text-slate-400',
+    isPinned: false,
+    privacy: 'public',
+    type: 'image'
+  },
+  {
     id: 4,
     author: 'You',
     handle: '@me',
@@ -66,13 +121,13 @@ const initialPosts = [
     handle: '@elonmusk',
     avatar: 'https://picsum.photos/seed/elon/150',
     content: 'Supreme Satellite: Global connectivity, redefined. The future of the decentralized web is here. #Supreme #Innovation',
-    images: ['https://picsum.photos/seed/space/800/400'],
+    images: ['https://picsum.photos/seed/space/1200/800'],
     video: null as string | null,
     likes: 1200000,
     dislikes: 5000,
     comments: 45000,
     shares: 120000,
-    time: '2h ago',
+    time: '3h ago',
     bgColor: 'transparent',
     transformType: 'normal',
     category: 'Tech',
@@ -102,7 +157,7 @@ const initialPosts = [
     authorFollowers: 5000000,
     authorRank: 'Official',
     authorRankColor: 'text-blue-600',
-    isPinned: true,
+    isPinned: false,
     privacy: 'public',
     type: 'text'
   },
@@ -783,6 +838,46 @@ export default function Network() {
     }
   };
   
+  // Fullscreen image viewer state
+  const [fullscreenMedia, setFullscreenMedia] = useState<{
+    images: string[];
+    currentIndex: number;
+    author?: string;
+    content?: string;
+  } | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+
+  // Keyboard navigation for full screen image lightbox
+  useEffect(() => {
+    if (!fullscreenMedia) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFullscreenMedia(null);
+        setZoomLevel(1);
+      } else if (e.key === 'ArrowLeft') {
+        if (fullscreenMedia.images.length > 1) {
+          setFullscreenMedia(prev => prev ? {
+            ...prev,
+            currentIndex: (prev.currentIndex - 1 + prev.images.length) % prev.images.length
+          } : null);
+          setZoomLevel(1);
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (fullscreenMedia.images.length > 1) {
+          setFullscreenMedia(prev => prev ? {
+            ...prev,
+            currentIndex: (prev.currentIndex + 1) % prev.images.length
+          } : null);
+          setZoomLevel(1);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [fullscreenMedia]);
+
   // Media upload state
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
@@ -1261,7 +1356,7 @@ export default function Network() {
 
             return (
               <div 
-                key={story.userId} 
+                key={`${story.userId}-${index}`} 
                 onClick={() => {
                   setActiveStoryUserIndex(index);
                   setActiveStoryItemIndex(0);
@@ -1912,7 +2007,7 @@ export default function Network() {
                   const ad = showAd ? level1Ads[Math.floor((index / 7) % level1Ads.length)] : null;
 
                   return (
-                    <React.Fragment key={post.id}>
+                    <React.Fragment key={`${post.id}-${index}`}>
                       {showAd && ad && (
                         <div className="my-6">
                           <AdBanner ad={ad} className="w-full h-auto" />
@@ -2053,9 +2148,72 @@ export default function Network() {
                   )}>{post.content}</p>
     
                   {post.images && post.images.length > 0 && post.type !== 'video' && (
-                    <div className={`mb-4 grid gap-2 ${post.images.length === 1 ? 'grid-cols-1' : post.images.length === 2 ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'} rounded-xl overflow-hidden border border-gray-100 shadow-sm`}>
+                    <div className={`mb-4 grid gap-2 ${
+                      post.images.length === 1 ? 'grid-cols-1' : 
+                      post.images.length === 2 ? 'grid-cols-2' : 
+                      'grid-cols-2 sm:grid-cols-3'
+                    } rounded-xl overflow-hidden border border-gray-100 shadow-sm relative group/grid`}>
                       {post.images.map((img: string, idx: number) => (
-                        <img key={idx} src={img} alt="Post content" className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" style={{ maxHeight: post.images.length === 1 ? '500px' : '250px' }} />
+                        <div 
+                          key={idx} 
+                          className="relative group/img cursor-pointer overflow-hidden bg-slate-950 select-none"
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setFullscreenMedia({
+                              images: post.images,
+                              currentIndex: idx,
+                              author: post.author,
+                              content: post.content
+                            });
+                            setZoomLevel(1);
+                            toast.info(`Full view: Image ${idx + 1} of ${post.images.length}`);
+                          }}
+                        >
+                          <img 
+                            src={img} 
+                            alt={`Post content image ${idx + 1}`} 
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105" 
+                            style={{ maxHeight: post.images.length === 1 ? '520px' : '260px' }} 
+                          />
+                          
+                          {/* Double-click visual cue overlay */}
+                          <div className="absolute inset-0 bg-black/45 opacity-0 group-hover/img:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white text-xs font-semibold gap-1.5 pointer-events-none p-3 text-center backdrop-blur-[2px]">
+                            <div className="p-2.5 rounded-full bg-white/20 backdrop-blur-md border border-white/30 shadow-xl">
+                              <Maximize2 className="w-5 h-5 text-white" />
+                            </div>
+                            <span className="drop-shadow-md">Double-click to view in full</span>
+                            {post.images.length > 1 && (
+                              <span className="text-[10px] text-white/90 font-mono bg-black/60 px-2 py-0.5 rounded-full border border-white/20">
+                                Image {idx + 1} of {post.images.length}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Top-right image index pill for multi-image posts */}
+                          {post.images.length > 1 && (
+                            <span className="absolute top-2.5 right-2.5 bg-black/75 text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded-full backdrop-blur-md border border-white/20 shadow-md pointer-events-none">
+                              {idx + 1}/{post.images.length}
+                            </span>
+                          )}
+
+                          {/* Expand button icon for quick tap */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFullscreenMedia({
+                                images: post.images,
+                                currentIndex: idx,
+                                author: post.author,
+                                content: post.content
+                              });
+                              setZoomLevel(1);
+                            }}
+                            className="absolute bottom-2.5 right-2.5 bg-black/60 hover:bg-black/90 text-white p-1.5 rounded-lg opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 border border-white/20 shadow-lg backdrop-blur-md"
+                            title="Expand Full View"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -3917,6 +4075,188 @@ export default function Network() {
                 <FileText className="w-3.5 h-3.5" /> Print Receipt
               </button>
             </motion.div>
+          </motion.div>
+        )}
+
+        {/* Fullscreen Post Image Lightbox Modal */}
+        {fullscreenMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col justify-between select-none overflow-hidden"
+            onClick={() => {
+              setFullscreenMedia(null);
+              setZoomLevel(1);
+            }}
+          >
+            {/* Header Bar */}
+            <div 
+              className="p-4 sm:p-6 bg-gradient-to-b from-black/90 via-black/50 to-transparent flex items-center justify-between z-40 text-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3">
+                <span className="bg-[var(--color-supreme-gold)] text-slate-950 font-extrabold text-xs px-3 py-1 rounded-full uppercase tracking-wider shadow-md">
+                  {fullscreenMedia.images.length > 1 
+                    ? `Image ${fullscreenMedia.currentIndex + 1} of ${fullscreenMedia.images.length}`
+                    : 'Full View'}
+                </span>
+                {fullscreenMedia.author && (
+                  <span className="text-white/90 text-sm font-semibold truncate max-w-[180px] sm:max-w-xs">
+                    {fullscreenMedia.author}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setZoomLevel(prev => prev === 1 ? 1.75 : 1)}
+                  className="p-2 sm:p-2.5 bg-white/10 hover:bg-white/20 rounded-full border border-white/10 text-white/90 hover:text-white transition-all backdrop-blur-md"
+                  title={zoomLevel === 1 ? "Zoom In (Double Click)" : "Reset Zoom"}
+                >
+                  {zoomLevel === 1 ? <ZoomIn className="w-4 sm:w-5 h-4 sm:h-5" /> : <ZoomOut className="w-4 sm:w-5 h-4 sm:h-5" />}
+                </button>
+
+                <button
+                  onClick={() => {
+                    const currentImgUrl = fullscreenMedia.images[fullscreenMedia.currentIndex];
+                    const a = document.createElement('a');
+                    a.href = currentImgUrl;
+                    a.download = `network-image-${fullscreenMedia.currentIndex + 1}.jpg`;
+                    a.target = '_blank';
+                    a.click();
+                    toast.success('Downloading full image...');
+                  }}
+                  className="p-2 sm:p-2.5 bg-white/10 hover:bg-white/20 rounded-full border border-white/10 text-white/90 hover:text-white transition-all backdrop-blur-md"
+                  title="Download Image"
+                >
+                  <Download className="w-4 sm:w-5 h-4 sm:h-5" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(fullscreenMedia.images[fullscreenMedia.currentIndex]);
+                    toast.success('Image URL copied to clipboard!');
+                  }}
+                  className="p-2 sm:p-2.5 bg-white/10 hover:bg-white/20 rounded-full border border-white/10 text-white/90 hover:text-white transition-all backdrop-blur-md"
+                  title="Share / Copy Link"
+                >
+                  <Share2 className="w-4 sm:w-5 h-4 sm:h-5" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setFullscreenMedia(null);
+                    setZoomLevel(1);
+                  }}
+                  className="p-2 sm:p-2.5 bg-white/20 hover:bg-red-500/80 rounded-full border border-white/20 text-white transition-all backdrop-blur-md ml-2"
+                  title="Close (Esc)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Main Display Area */}
+            <div 
+              className="flex-1 relative flex items-center justify-center p-4 sm:p-8 z-30 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {fullscreenMedia.images.length > 1 && (
+                <button
+                  onClick={() => {
+                    setFullscreenMedia(prev => prev ? {
+                      ...prev,
+                      currentIndex: (prev.currentIndex - 1 + prev.images.length) % prev.images.length
+                    } : null);
+                    setZoomLevel(1);
+                  }}
+                  className="absolute left-3 sm:left-8 z-40 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white shadow-2xl backdrop-blur-md transition-all hover:scale-110 active:scale-95 group"
+                  title="Previous Image (Left Arrow)"
+                >
+                  <ChevronLeft className="w-6 sm:w-8 h-6 sm:h-8 group-hover:-translate-x-0.5 transition-transform" />
+                </button>
+              )}
+
+              <motion.div
+                key={fullscreenMedia.currentIndex}
+                initial={{ opacity: 0, scale: 0.93 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.93 }}
+                transition={{ duration: 0.2 }}
+                className="relative max-w-full max-h-full flex items-center justify-center overflow-auto"
+              >
+                <img
+                  src={fullscreenMedia.images[fullscreenMedia.currentIndex]}
+                  alt={`Full view image ${fullscreenMedia.currentIndex + 1}`}
+                  className="max-h-[70vh] sm:max-h-[76vh] w-auto max-w-full object-contain rounded-xl border border-white/10 shadow-2xl transition-transform duration-300 cursor-zoom-in"
+                  style={{ transform: `scale(${zoomLevel})` }}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    setZoomLevel(prev => prev === 1 ? 1.75 : 1);
+                  }}
+                />
+              </motion.div>
+
+              {fullscreenMedia.images.length > 1 && (
+                <button
+                  onClick={() => {
+                    setFullscreenMedia(prev => prev ? {
+                      ...prev,
+                      currentIndex: (prev.currentIndex + 1) % prev.images.length
+                    } : null);
+                    setZoomLevel(1);
+                  }}
+                  className="absolute right-3 sm:right-8 z-40 p-3 sm:p-4 rounded-full bg-black/60 hover:bg-black/90 border border-white/20 text-white shadow-2xl backdrop-blur-md transition-all hover:scale-110 active:scale-95 group"
+                  title="Next Image (Right Arrow)"
+                >
+                  <ChevronRight className="w-6 sm:w-8 h-6 sm:h-8 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              )}
+            </div>
+
+            {/* Bottom Bar / Thumbnail Strip */}
+            <div 
+              className="p-4 sm:p-6 bg-gradient-to-t from-black/95 via-black/80 to-transparent flex flex-col items-center gap-3 z-40 text-white"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {fullscreenMedia.images.length > 1 && (
+                <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto max-w-full px-4 py-2 no-scrollbar">
+                  {fullscreenMedia.images.map((imgUrl, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setFullscreenMedia(prev => prev ? { ...prev, currentIndex: idx } : null);
+                        setZoomLevel(1);
+                      }}
+                      className={clsx(
+                        "relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 transition-all duration-200 flex-shrink-0 cursor-pointer",
+                        idx === fullscreenMedia.currentIndex
+                          ? "border-[var(--color-supreme-gold)] ring-4 ring-[var(--color-supreme-gold)]/30 scale-105 shadow-xl"
+                          : "border-white/20 opacity-40 hover:opacity-100 hover:border-white/60 hover:scale-95"
+                      )}
+                    >
+                      <img src={imgUrl} alt={`Thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                      <span className="absolute bottom-0.5 right-0.5 bg-black/80 text-white text-[9px] font-mono px-1 rounded font-bold">
+                        {idx + 1}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {fullscreenMedia.content && (
+                <p className="text-white/80 text-xs sm:text-sm text-center max-w-2xl line-clamp-2 px-4 leading-relaxed font-normal">
+                  {fullscreenMedia.content}
+                </p>
+              )}
+
+              <div className="flex items-center gap-4 text-[11px] text-white/50 font-mono">
+                <span>Use <kbd className="px-1.5 py-0.5 bg-white/10 rounded border border-white/20 text-[10px]">←</kbd> <kbd className="px-1.5 py-0.5 bg-white/10 rounded border border-white/20 text-[10px]">→</kbd> to navigate</span>
+                <span>•</span>
+                <span>Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded border border-white/20 text-[10px]">Esc</kbd> to exit</span>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

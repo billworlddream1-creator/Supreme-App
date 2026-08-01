@@ -76,30 +76,37 @@ export default function SupremeHallOfFame() {
   const [cycleStartOffsetHours, setCycleStartOffsetHours] = useState(0);
 
   useEffect(() => {
-    socketRef.current = io();
-    
-    socketRef.current.on("million-draw:state-update", (state: any) => {
-      if (state.winners && state.winners.length > 0) {
-        setMillionDrawWinners(state.winners.map((w: any, idx: number) => ({
+    let socket: any = null;
+    try {
+      socket = io();
+      socketRef.current = socket;
+      
+      socket?.on?.("million-draw:state-update", (state: any) => {
+        if (state.winners && state.winners.length > 0) {
+          setMillionDrawWinners(state.winners.map((w: any, idx: number) => ({
+            ...w,
+            rank: idx + 1,
+            date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+          })));
+        }
+      });
+
+      socket?.on?.("million-draw:winners", (winners: any) => {
+        setMillionDrawWinners(winners.map((w: any, idx: number) => ({
           ...w,
           rank: idx + 1,
           date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
         })));
-      }
-    });
+      });
 
-    socketRef.current.on("million-draw:winners", (winners: any) => {
-      setMillionDrawWinners(winners.map((w: any, idx: number) => ({
-        ...w,
-        rank: idx + 1,
-        date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-      })));
-    });
-
-    socketRef.current.emit("million-draw:get-state");
+      socket?.emit?.("million-draw:get-state");
+    } catch (e) {
+      console.error('Socket error in SupremeHallOfFame:', e);
+    }
 
     return () => {
-      socketRef.current.disconnect();
+      socket?.disconnect?.();
+      socketRef.current = null;
     };
   }, []);
 

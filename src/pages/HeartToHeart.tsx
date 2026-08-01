@@ -91,30 +91,35 @@ export default function HeartToHeart() {
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
-    const newSocket = io();
-    setSocket(newSocket);
+    let newSocket: any = null;
+    try {
+      newSocket = io();
+      setSocket(newSocket);
 
-    newSocket.on('booking:notification', (data: any) => {
-      // If the user is a mentor, show the notification
-      // In a real app, we'd check if the booking is for THIS mentor
-      setNotifications(prev => [{ ...data, id: Date.now(), read: false }, ...prev]);
-      
-      toast.success(`New Booking Request!`, {
-        description: `${data.userName} booked a ${data.type} session for ${data.date} at ${data.time}.`,
-        duration: 8000,
-        icon: <Calendar className="w-5 h-5 text-red-500" />,
-        action: {
-          label: 'View',
-          onClick: () => {
-            setActiveTab('sessions');
-            setShowNotifications(true);
+      newSocket?.on?.('booking:notification', (data: any) => {
+        // If the user is a mentor, show the notification
+        // In a real app, we'd check if the booking is for THIS mentor
+        setNotifications(prev => [{ ...data, id: Date.now(), read: false }, ...prev]);
+        
+        toast.success(`New Booking Request!`, {
+          description: `${data.userName} booked a ${data.type} session for ${data.date} at ${data.time}.`,
+          duration: 8000,
+          icon: <Calendar className="w-5 h-5 text-red-500" />,
+          action: {
+            label: 'View',
+            onClick: () => {
+              setActiveTab('sessions');
+              setShowNotifications(true);
+            }
           }
-        }
+        });
       });
-    });
+    } catch (e) {
+      console.error('Socket error in HeartToHeart:', e);
+    }
 
     return () => {
-      newSocket.disconnect();
+      newSocket?.disconnect?.();
     };
   }, []);
 
@@ -127,7 +132,7 @@ export default function HeartToHeart() {
 
   return (
     <FeatureLoader text="Heart to Heart">
-      <Toaster position="top-right" richColors />
+      <Toaster theme="light" position="top-right" richColors />
       <div className="max-w-7xl mx-auto space-y-8 pb-12">
         {/* Header Section */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-500 to-pink-600 p-8 md:p-12 text-white shadow-xl">
@@ -1007,7 +1012,7 @@ export default function HeartToHeart() {
                           }]);
                           // Emit socket event for notification
                           if (socket) {
-                            socket.emit('booking:new', {
+                            socket?.emit?.('booking:new', {
                               userName: user?.name || 'A user',
                               expertName: selectedExpert?.name,
                               ...bookingForm

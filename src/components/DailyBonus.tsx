@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { Coins, Gift, Crown, Check, Sparkles, Flame, X, Calendar, ArrowRight, TrendingUp, Info, Award, Zap, History, ShieldAlert, BarChart3, Clock, Bell, BellOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { doc, updateDoc, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useNotification } from '../context/NotificationContext';
 import StreakAnalysisArea from './StreakAnalysisArea';
 
@@ -237,9 +237,8 @@ export default function DailyBonus() {
 
       mergedList.sort((a, b) => b.date.getTime() - a.date.getTime());
       setHistoryLogs(mergedList);
-    } catch (error) {
-      console.error('Failed to query daily bonus claims:', error);
-      // Fallback cleanly to local logs on failed queries due to networking or permission errors
+    } catch (error: any) {
+      console.warn('Daily bonus claims query notice:', error?.message || error);
       setHistoryLogs(localList);
     } finally {
       setLoadingHistory(false);

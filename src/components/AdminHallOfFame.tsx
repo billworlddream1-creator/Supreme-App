@@ -162,7 +162,7 @@ export default function AdminHallOfFame() {
                   <tbody className="divide-y divide-red-800/10">
                     {leaderboard.map((entry, i) => (
                       <tr 
-                        key={entry.userId} 
+                        key={`${entry.userId}-${i}`} 
                         onClick={() => setSelectedUser(entry.userId)}
                         className={clsx(
                           "hover:bg-red-900/40 transition-colors cursor-pointer group",

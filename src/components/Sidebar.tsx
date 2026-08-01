@@ -35,7 +35,8 @@ import {
   Cpu,
   FileText,
   Settings,
-  Smartphone
+  Smartphone,
+  Music
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx } from 'clsx';
@@ -90,6 +91,8 @@ const navGroups: NavGroup[] = [
       { path: '/chat', label: 'Chat', icon: MessageCircle, featureId: 'chat' },
       { path: '/streams', label: 'Streams', icon: Radio, featureId: 'streams' },
       { path: '/media', label: 'Media', icon: Play, featureId: 'streams' },
+      { path: '/super-short', label: 'Super Shorts', icon: Music },
+      { path: '/super-sounds-promote', label: 'Super Sounds', icon: Radio },
       { path: '/celeb-hub', label: 'Celeb Hub', icon: Star, featureId: 'celeb-hub' },
       { path: '/hall-of-fame', label: 'Hall of Fame', icon: Trophy },
     ]

@@ -45,8 +45,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import clsx from 'clsx';
 import FeatureLoader from '../components/FeatureLoader';
-import ReactQuill from 'react-quill-new';
-import { quillModules, quillFormats } from '../quill-setup';
+import WysiwygEditor from '../components/WysiwygEditor';
 
 import DigitalTools from '../components/DigitalTools';
 
@@ -1444,8 +1443,6 @@ function CloudManagementSection({ files, setFiles, onNewDoc }: { files: CloudFil
 }
 
 function WordEditor({ content, onChange, onSave, onExit }: { content: string, onChange: (val: string) => void, onSave: () => void, onExit: () => void }) {
-  const quillRef = useRef<any>(null);
-
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -1494,29 +1491,13 @@ function WordEditor({ content, onChange, onSave, onExit }: { content: string, on
           </button>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <ReactQuill 
-          ref={quillRef}
-          theme="snow" 
+      <div className="flex-1 overflow-y-auto flex flex-col p-2">
+        <WysiwygEditor 
           value={content} 
           onChange={onChange}
-          modules={quillModules}
-          formats={quillFormats}
-          className="flex-1 flex flex-col h-full"
           placeholder="Start writing your document..."
         />
       </div>
-      <style>{`
-        .ql-container {
-          flex: 1;
-          overflow-y: auto;
-          font-family: inherit;
-          font-size: 1rem;
-        }
-        .ql-editor {
-          min-height: 100%;
-        }
-      `}</style>
     </div>
   );
 }

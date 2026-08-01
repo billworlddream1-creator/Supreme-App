@@ -102,20 +102,24 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     // Dynamically synchronize the plans from Firestore with robust fallback
-    const unsubscribePlans = onSnapshot(collection(db, 'subscription_plans'), async (snapshot) => {
-      if (snapshot.empty) {
-        // Seed database with default PLANS if empty
-        try {
-          for (const p of PLANS) {
-            await setDoc(doc(db, 'subscription_plans', p.id), {
-              ...p,
-              isPaused: false
-            });
-          }
-        } catch (err) {
-          console.warn("Failed to seed subscription plans (gracefully using static fallback):", err);
-          setPlans(PLANS);
+    const seedDefaultPlans = async () => {
+      try {
+        for (const p of PLANS) {
+          await setDoc(doc(db, 'subscription_plans', p.id), {
+            ...p,
+            isPaused: false
+          });
         }
+      } catch (err) {
+        console.warn("Failed to seed subscription plans (gracefully using static fallback):", err);
+      }
+    };
+
+    const unsubscribePlans = onSnapshot(collection(db, 'subscription_plans'), (snapshot) => {
+      if (snapshot.empty) {
+        setPlans(PLANS);
+        // Seed database in background asynchronously outside listener loop
+        seedDefaultPlans();
       } else {
         const loadedPlans: SubscriptionPlan[] = [];
         snapshot.forEach((docSnap) => {

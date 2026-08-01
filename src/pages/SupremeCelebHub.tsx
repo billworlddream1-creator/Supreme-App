@@ -424,6 +424,10 @@ export default function SupremeCelebHub() {
   const [activeStatusViewer, setActiveStatusViewer] = useState<any | null>(null);
 
   useEffect(() => {
+    if (!user) {
+      setDbStatuses([]);
+      return;
+    }
     const statusesCollection = collection(db, 'statuses');
     const unsubscribe = onSnapshot(statusesCollection, (snapshot) => {
       const all: any[] = [];
@@ -437,10 +441,11 @@ export default function SupremeCelebHub() {
       });
       setDbStatuses(all);
     }, (error) => {
-      console.error("Error loading statuses in CelebHub:", error);
+      console.warn("Notice: Unable to load statuses in CelebHub:", error?.message || error);
+      setDbStatuses([]);
     });
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const primaryColor = hubSettings.theme === 'emerald' ? 'emerald-600' : 'yellow-600';
   const primaryBg = hubSettings.theme === 'emerald' ? 'bg-emerald-600' : 'bg-yellow-600';

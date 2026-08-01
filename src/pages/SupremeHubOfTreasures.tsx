@@ -193,8 +193,7 @@ export default function SupremeHubOfTreasures() {
 
     const q = query(
       collection(db, 'treasureInvestments'),
-      where('userId', '==', user.uid),
-      orderBy('startDate', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -202,10 +201,11 @@ export default function SupremeHubOfTreasures() {
       snapshot.forEach(doc => {
         docs.push({ id: doc.id, ...doc.data() } as Investment);
       });
+      docs.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
       setInvestments(docs);
       setIsLoading(false);
     }, (error) => {
-      console.error("Snapshot error:", error);
+      console.warn("Treasure investments notice:", error);
       setIsLoading(false);
     });
 

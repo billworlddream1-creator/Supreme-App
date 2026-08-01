@@ -141,8 +141,8 @@ export default function AdminMonthlyAwardManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredParticipants.map(p => (
-                  <tr key={p.userId} className="hover:bg-gray-50 transition-colors">
+                {filteredParticipants.map((p, idx) => (
+                  <tr key={`${p.userId}-${idx}`} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-bold text-gray-900">{p.userName}</div>
                       <div className="text-[10px] text-gray-400">{p.userId}</div>
@@ -170,7 +170,7 @@ export default function AdminMonthlyAwardManager() {
           </h3>
           <div className="space-y-4">
             {top5.map((p, idx) => (
-              <div key={p.userId} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10">
+              <div key={`${p.userId}-${idx}`} className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/10">
                 <div className="flex items-center gap-3">
                   <div className={clsx(
                     "w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm",

@@ -54,6 +54,8 @@ import { Loader2, Crown, Lock, Clock, AlertCircle, ChevronRight } from 'lucide-r
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AdminProvider } from './context/AdminContext';
 import { SubscriptionProvider, useSubscription } from './context/SubscriptionContext';
+import { GreetingProvider } from './context/GreetingContext';
+import GreetingMoodTracker from './components/GreetingMoodTracker';
 import { WalletProvider } from './context/WalletContext';
 import { AdsProvider } from './context/AdsContext';
 import { SecurityProvider } from './context/SecurityContext';
@@ -110,6 +112,8 @@ const SupremeHubOfTreasures = lazy(() => import('./pages/SupremeHubOfTreasures')
 const Appeal = lazy(() => import('./pages/Appeal'));
 const AppManual = lazy(() => import('./pages/AppManual'));
 const Settings = lazy(() => import('./pages/Settings'));
+const SuperShort = lazy(() => import('./pages/SuperShort'));
+const SuperSoundsPromote = lazy(() => import('./pages/SuperSoundsPromote'));
 
 // Loading Fallback
 const PageLoader = () => (
@@ -664,15 +668,17 @@ export default function App() {
               <ActivityFlashProvider>
                 <AdminProvider>
                   <SubscriptionProvider>
-                    <WalletProvider>
-                      <MiningProvider>
-                        <MonthlyAwardsProvider>
-                          <AdsProvider>
-                            <SecurityProvider>
-                              <HashRouter>
-                                <AnalyticsTracker />
-                                <BirthdayGreeting />
-                                <T10RewardTrigger />
+                    <GreetingProvider>
+                      <WalletProvider>
+                        <MiningProvider>
+                          <MonthlyAwardsProvider>
+                            <AdsProvider>
+                              <SecurityProvider>
+                                <HashRouter>
+                                  <AnalyticsTracker />
+                                  <BirthdayGreeting />
+                                  <GreetingMoodTracker />
+                                  <T10RewardTrigger />
                                 <DailyBonus />
                                 <StreakAnalysisArea mode="popup" />
                                 <SessionTimeoutWarner />
@@ -716,6 +722,8 @@ export default function App() {
                                       <Route path="supreme-treasures" element={<ProtectedRoute><SupremeHubOfTreasures /></ProtectedRoute>} />
                                       <Route path="appeal" element={<ProtectedRoute><Appeal /></ProtectedRoute>} />
                                       <Route path="manual" element={<ProtectedRoute><AppManual /></ProtectedRoute>} />
+                                      <Route path="super-short" element={<ProtectedRoute><SuperShort /></ProtectedRoute>} />
+                                      <Route path="super-sounds-promote" element={<ProtectedRoute><SuperSoundsPromote /></ProtectedRoute>} />
                                       <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                                     </Route>
                                   </Routes>
@@ -726,7 +734,8 @@ export default function App() {
                         </MonthlyAwardsProvider>
                       </MiningProvider>
                     </WalletProvider>
-                  </SubscriptionProvider>
+                  </GreetingProvider>
+                </SubscriptionProvider>
                 </AdminProvider>
               </ActivityFlashProvider>
             </NotificationProvider>

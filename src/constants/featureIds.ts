@@ -19,6 +19,8 @@ export const SUPREME_FEATURES: SupremeFeature[] = [
   { id: 'FT-NOB-888', name: 'Supreme Nobles', category: 'Main' },
   { id: 'FT-BOX-777', name: 'Supreme Mysterious Box', category: 'Main' },
   { id: 'FT-TRS-555', name: 'Noble Treasure', category: 'Main' },
+  { id: 'FT-SHR-700', name: 'Super Shorts', category: 'Media' },
+  { id: 'FT-SSP-800', name: 'Super Sounds Promote', category: 'Media' },
   { id: 'FT-ADM-999', name: 'Admin Dashboard', category: 'Main' }
 ];
 

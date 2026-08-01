@@ -1388,7 +1388,7 @@ export default function BetOptimum() {
               </thead>
               <tbody className="divide-y divide-white/5">
                 {globalStats.map((stat, i) => (
-                  <tr key={stat.userId} className={clsx("hover:bg-white/5 transition-colors", stat.userId === user?.uid && "bg-[var(--color-supreme-gold)]/5")}>
+                  <tr key={`${stat.userId}-${i}`} className={clsx("hover:bg-white/5 transition-colors", stat.userId === user?.uid && "bg-[var(--color-supreme-gold)]/5")}>
                     <td className="px-10 py-5">
                       <div className={clsx(
                         "w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm border shadow-lg",

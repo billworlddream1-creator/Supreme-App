@@ -5182,44 +5182,51 @@ function MillionDraw() {
   const [alerts, setAlerts] = useState<{ id: string, message: string }[]>([]);
 
   useEffect(() => {
-    socketRef.current = io();
-    
-    socketRef.current.on("million-draw:state-update", (state: any) => {
-      setServerState(state);
+    let socket: any = null;
+    try {
+      socket = io();
+      socketRef.current = socket;
       
-      // Check if user is out or disqualified
-      if (user?.id && (state.scores[user.id]?.isOut || state.scores[user.id]?.disqualified)) {
-        setIsUserOut(true);
-      }
-    });
+      socket?.on?.("million-draw:state-update", (state: any) => {
+        setServerState(state);
+        
+        // Check if user is out or disqualified
+        if (user?.id && (state.scores[user.id]?.isOut || state.scores[user.id]?.disqualified)) {
+          setIsUserOut(true);
+        }
+      });
 
-    socketRef.current.on("million-draw:alert", (alert: { message: string }) => {
-      const id = Math.random().toString(36).substr(2, 9);
-      setAlerts(prev => [...prev, { id, message: alert.message }]);
-      playSound('notification');
-      setTimeout(() => {
-        setAlerts(prev => prev.filter(a => a.id !== id));
-      }, 5000);
-    });
+      socket?.on?.("million-draw:alert", (alert: { message: string }) => {
+        const id = Math.random().toString(36).substr(2, 9);
+        setAlerts(prev => [...prev, { id, message: alert.message }]);
+        playSound('notification');
+        setTimeout(() => {
+          setAlerts(prev => prev.filter(a => a.id !== id));
+        }, 5000);
+      });
 
-    socketRef.current.on("million-draw:unlocked", () => {
-      playSound('success');
-    });
+      socket?.on?.("million-draw:unlocked", () => {
+        playSound('success');
+      });
 
-    socketRef.current.on("million-draw:semi-finalists", (finalists: any) => {
-      if (finalists.some((f: any) => f.id === user?.id)) {
-        playSound('achievement');
-      }
-    });
+      socket?.on?.("million-draw:semi-finalists", (finalists: any) => {
+        if (finalists.some((f: any) => f.id === user?.id)) {
+          playSound('achievement');
+        }
+      });
 
-    socketRef.current.on("million-draw:winners", (winners: any) => {
-      playSound('celebration');
-    });
+      socket?.on?.("million-draw:winners", (winners: any) => {
+        playSound('celebration');
+      });
 
-    socketRef.current.emit("million-draw:get-state");
+      socket?.emit?.("million-draw:get-state");
+    } catch (e) {
+      console.error('Socket error in ProjectPower:', e);
+    }
 
     return () => {
-      socketRef.current.disconnect();
+      socket?.disconnect?.();
+      socketRef.current = null;
     };
   }, [user?.id]);
 
@@ -5269,7 +5276,7 @@ function MillionDraw() {
   const handleSubscribe = () => {
     if (balance >= 5) {
       withdraw(5);
-      socketRef.current.emit("million-draw:subscribe", { 
+      socketRef.current?.emit?.("million-draw:subscribe", { 
         userId: user?.id, 
         name: user?.name 
       });
@@ -5349,7 +5356,7 @@ function MillionDraw() {
             setGameState('level_up');
           } else {
             setGameState('result');
-            socketRef.current.emit("million-draw:submit-score", { 
+            socketRef.current?.emit?.("million-draw:submit-score", { 
               userId: user?.id, 
               name: user?.name || 'Anonymous', 
               score: score + points,
@@ -5359,7 +5366,7 @@ function MillionDraw() {
           }
         } else {
           setGameState('game_over');
-          socketRef.current.emit("million-draw:submit-score", { 
+          socketRef.current?.emit?.("million-draw:submit-score", { 
             userId: user?.id, 
             name: user?.name || 'Anonymous', 
             score: score + points,
@@ -6004,12 +6011,21 @@ function AdminDashboard({ supremeEarnings }: { supremeEarnings: number }) {
   const socketRef = useRef<any>(null);
 
   useEffect(() => {
-    socketRef.current = io();
-    socketRef.current.emit("million-draw:get-state");
-    socketRef.current.on("million-draw:state-update", (state: any) => {
-      setServerState(state);
-    });
-    return () => socketRef.current.disconnect();
+    let socket: any = null;
+    try {
+      socket = io();
+      socketRef.current = socket;
+      socket?.emit?.("million-draw:get-state");
+      socket?.on?.("million-draw:state-update", (state: any) => {
+        setServerState(state);
+      });
+    } catch (e) {
+      console.error('Socket error in AdminDashboard:', e);
+    }
+    return () => {
+      socket?.disconnect?.();
+      socketRef.current = null;
+    };
   }, []);
 
   if (!isAdmin) {
@@ -6025,24 +6041,24 @@ function AdminDashboard({ supremeEarnings }: { supremeEarnings: number }) {
   if (!serverState) return <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 animate-spin text-[var(--color-supreme-gold)]" /></div>;
 
   const handleUpdateState = (updates: any) => {
-    socketRef.current.emit("million-draw:admin-update-state", updates);
+    socketRef.current?.emit?.("million-draw:admin-update-state", updates);
   };
 
   const handleReset = () => {
     if (window.confirm("Are you sure you want to reset the entire Million Draw cycle? All scores and subscribers will be cleared.")) {
-      socketRef.current.emit("million-draw:admin-reset");
+      socketRef.current?.emit?.("million-draw:admin-reset");
     }
   };
 
   const handleDisqualify = (userId: string, name: string) => {
     const reason = window.prompt(`Reason for disqualifying ${name}:`, "Administrative decision");
     if (reason) {
-      socketRef.current.emit("million-draw:admin-disqualify", { userId, reason });
+      socketRef.current?.emit?.("million-draw:admin-disqualify", { userId, reason });
     }
   };
 
   const handlePayWinner = (winnerId: string) => {
-    socketRef.current.emit("million-draw:admin-pay-winner", winnerId);
+    socketRef.current?.emit?.("million-draw:admin-pay-winner", winnerId);
   };
 
   const stages = ["accumulation", "waiting-quarter", "quarter-finals", "waiting-finals", "semi-finals-1", "semi-finals-2", "finals", "completed"];

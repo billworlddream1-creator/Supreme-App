@@ -48,8 +48,9 @@ export interface Message {
   id: string;
   text: string;
   senderId: string;
-  type: 'text' | 'gif' | 'audio';
+  type: 'text' | 'gif' | 'audio' | 'image' | 'file' | 'location' | 'clip';
   timestamp: any;
+  metadata?: any;
 }
 
 export interface ChatSession {
@@ -87,7 +88,7 @@ interface NetworkContextType {
   searchCommunities: (query: string) => Community[];
   searchUsers: (query: string) => Friend[];
   allUsers: Friend[];
-  sendMessage: (friendId: string, text: string, type?: 'text' | 'gif' | 'audio') => Promise<void>;
+  sendMessage: (friendId: string, text: string, type?: 'text' | 'gif' | 'audio' | 'image' | 'file' | 'location' | 'clip', metadata?: any) => Promise<void>;
   markChatRead: (friendId: string) => void;
   getFriendLimit: () => number;
 }
@@ -153,12 +154,12 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       where('users', 'array-contains', user.uid)
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const processFriendshipsSnapshot = async (docs: any[]) => {
       const activeFriends: Friend[] = [];
       const incomingRequests: Friend[] = [];
       const outgoingRequests: string[] = [];
 
-      const promises = snapshot.docs.map(async (friendshipDoc) => {
+      const promises = docs.map(async (friendshipDoc) => {
         const data = friendshipDoc.data();
         const otherId = data.users.find((id: string) => id !== user.uid);
         
@@ -202,6 +203,12 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
       setFriends(activeFriends);
       setFriendRequests(incomingRequests);
       setSentRequests(outgoingRequests);
+    };
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      processFriendshipsSnapshot(snapshot.docs).catch(err => {
+        console.warn('Error processing friendships snapshot:', err);
+      });
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'friendships');
     });
@@ -292,8 +299,9 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
           id: doc.id,
           text: data.text,
           senderId: data.senderId,
-          type: data.type,
-          timestamp: data.timestamp
+          type: data.type || 'text',
+          timestamp: data.timestamp,
+          metadata: data.metadata || null
         };
         
         sessions[otherId].messages.push(msg);
@@ -484,16 +492,20 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const sendMessage = async (friendId: string, text: string, type: 'text' | 'gif' | 'audio' = 'text') => {
+  const sendMessage = async (friendId: string, text: string, type: 'text' | 'gif' | 'audio' | 'image' | 'file' | 'location' | 'clip' = 'text', metadata?: any) => {
     if (!user) return;
     try {
-      await addDoc(collection(db, 'messages'), {
+      const docData: any = {
         participants: [user.uid, friendId],
         senderId: user.uid,
         text,
         type,
         timestamp: Timestamp.now()
-      });
+      };
+      if (metadata) {
+        docData.metadata = metadata;
+      }
+      await addDoc(collection(db, 'messages'), docData);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'messages');
     }

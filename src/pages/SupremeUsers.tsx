@@ -1100,7 +1100,7 @@ export default function SupremeUsers() {
 
             {/* Other Users with Ads injected every 10 */}
             {users.map((u, i) => (
-              <React.Fragment key={u.id}>
+              <React.Fragment key={`${u.id}-${i}`}>
                 <UserCard 
                   user={u} 
                   index={i} 

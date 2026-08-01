@@ -8,10 +8,10 @@ import firebaseConfig from '../firebase-applet-config.json';
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 
-// Enable auto-detect long polling to improve connectivity in restricted environments safely
+// Initialize Firestore smoothly without forced long polling which causes internal watch stream assertion crashes in iframe proxies
 export const db = (firebaseConfig as any).firestoreDatabaseId
   ? initializeFirestore(app, { experimentalAutoDetectLongPolling: true }, (firebaseConfig as any).firestoreDatabaseId)
-  : initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  : getFirestore(app);
 
 export const analytics = typeof window !== 'undefined' && firebaseConfig.measurementId ? (async () => {
   try {
@@ -90,31 +90,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   }
 }
 
-// Validate Connection to Firestore
-async function testConnection() {
-  // Add a small delay to ensure network is initialized
-  await new Promise(resolve => setTimeout(resolve, 2000));
+// Handle Firestore operations gracefully
+export async function verifyFirestoreConnection() {
   try {
     const testDoc = doc(db, 'test', 'connection');
-    await getDocFromServer(testDoc);
-    console.log("Firestore connection verified successfully.");
+    await getDoc(testDoc);
+    console.log("Firestore connection verified.");
   } catch (error) {
     if (error instanceof Error) {
-      console.warn("DEBUG - Firestore Connection info:", {
-        message: error.message,
-        name: error.name
-      });
-      if (error.message.includes('the client is offline')) {
-        console.warn("Firebase configuration: The client appears to be offline. Keeping local fallback state.");
-      } else {
-        console.warn("Firestore connection: ", error.message);
-      }
-    } else {
-      console.warn("DEBUG - Firestore Connection is not an Error instance:", error);
+      console.warn("Firestore status:", error.message);
     }
   }
 }
-testConnection();
 
 export { 
   signInWithPopup, 

@@ -38,17 +38,22 @@ export default function AdminChat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const newSocket = io(window.location.origin);
-    setSocket(newSocket);
+    let newSocket: Socket | null = null;
+    try {
+      newSocket = io(window.location.origin);
+      setSocket(newSocket);
 
-    newSocket.emit('join-admin-chat', user?.id);
+      newSocket?.emit?.('join-admin-chat', user?.id);
 
-    newSocket.on('admin-message', (message: Message) => {
-      setMessages(prev => [...prev, message]);
-    });
+      newSocket?.on?.('admin-message', (message: Message) => {
+        setMessages(prev => [...prev, message]);
+      });
+    } catch (e) {
+      console.error('Socket error in AdminChat:', e);
+    }
 
     return () => {
-      newSocket.disconnect();
+      newSocket?.disconnect?.();
     };
   }, [user]);
 
@@ -72,7 +77,7 @@ export default function AdminChat() {
       timestamp: new Date().toISOString(),
     };
 
-    socket.emit('send-admin-message', newMessage);
+    socket?.emit?.('send-admin-message', newMessage);
     setInputText('');
     setShowEmojiPicker(false);
   };

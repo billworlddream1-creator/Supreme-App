@@ -101,7 +101,7 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen bg-[var(--color-supreme-bg)] text-[var(--color-supreme-text)] overflow-hidden font-sans">
-      <Toaster position="top-right" richColors />
+      <Toaster theme="light" position="top-right" richColors />
       {/* Security Key Prompt Overlay */}
       <AnimatePresence>
         {isPendingSecurityVerification && (

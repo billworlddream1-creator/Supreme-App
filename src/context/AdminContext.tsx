@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from './AuthContext';
+import { logRecentActivity } from '../services/activityLogger';
 
 export type MiniAdminCategory = 'promotional' | 'email-marketing' | 'user-management' | 'finance' | 'general';
 
@@ -282,6 +283,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const addMiniAdmin = async (admin: Omit<MiniAdmin, 'id'>) => {
     try {
       await addDoc(collection(db, 'mini_admins'), admin);
+      await logRecentActivity({
+        category: 'user_roles',
+        action: 'Mini-Admin Created',
+        details: `Assigned mini-admin category "${admin.category}" to ${admin.email} (Name: ${admin.name}).`,
+        targetUser: `${admin.name} (${admin.email})`,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: 'medium',
+        status: 'success'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'mini_admins');
     }
@@ -290,6 +300,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const removeMiniAdmin = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'mini_admins', id));
+      await logRecentActivity({
+        category: 'user_roles',
+        action: 'Mini-Admin Revoked',
+        details: `Revoked mini-admin privileges for record ID ${id}.`,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: 'high',
+        status: 'warning'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `mini_admins/${id}`);
     }
@@ -298,6 +316,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const updateMiniAdmin = async (id: string, data: Partial<MiniAdmin>) => {
     try {
       await updateDoc(doc(db, 'mini_admins', id), data);
+      await logRecentActivity({
+        category: 'user_roles',
+        action: 'Mini-Admin Privileges Modified',
+        details: `Updated mini-admin record ${id}: ${Object.keys(data).join(', ')}.`,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: 'medium',
+        status: 'info'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `mini_admins/${id}`);
     }
@@ -316,6 +342,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const updateUserRole = async (userId: string, role: SiteUser['role']) => {
     try {
       await updateDoc(doc(db, 'users', userId), { role });
+      await logRecentActivity({
+        category: 'user_roles',
+        action: `User Role Changed to ${role.toUpperCase()}`,
+        details: `Modified system role for user ID ${userId} to ${role}.`,
+        targetUserId: userId,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: role === 'admin' ? 'high' : 'medium',
+        status: 'success'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -324,6 +359,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const updateUserStatus = async (userId: string, status: SiteUser['status']) => {
     try {
       await updateDoc(doc(db, 'users', userId), { status });
+      await logRecentActivity({
+        category: 'user_roles',
+        action: `User Status Changed to ${status.toUpperCase()}`,
+        details: `Updated user account status for user ID ${userId} to ${status}.`,
+        targetUserId: userId,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: status === 'suspended' ? 'high' : 'low',
+        status: status === 'suspended' ? 'error' : 'success'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -339,6 +383,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       
       // Also update their products
       await updateDealerProductsStatus(userId, isSuspended ? 'on-hold' : 'active');
+
+      await logRecentActivity({
+        category: 'user_roles',
+        action: isSuspended ? 'User Account Suspended' : 'User Suspension Lifted',
+        details: `Account ${userId} was ${isSuspended ? 'suspended' : 'reactivated'}.${reason ? ` Reason: ${reason}` : ''}`,
+        targetUserId: userId,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: isSuspended ? 'high' : 'low',
+        status: isSuspended ? 'error' : 'success'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -369,6 +423,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         verificationReason: reason || null,
         role: status === 'approved' ? 'dealer' : 'user'
       });
+      await logRecentActivity({
+        category: 'user_roles',
+        action: `Seller Verification ${status.toUpperCase()}`,
+        details: `Seller verification status for ${userId} set to ${status}.${reason ? ` Reason: ${reason}` : ''}`,
+        targetUserId: userId,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: status === 'approved' ? 'medium' : 'high',
+        status: status === 'approved' ? 'success' : 'warning'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -377,6 +440,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const removeUser = async (userId: string) => {
     try {
       await deleteDoc(doc(db, 'users', userId));
+      await logRecentActivity({
+        category: 'user_roles',
+        action: 'User Account Purged',
+        details: `Permanently removed user account record ID ${userId}.`,
+        targetUserId: userId,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: 'critical',
+        status: 'error'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${userId}`);
     }
@@ -385,6 +457,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = async (data: Partial<PlatformSettings>) => {
     try {
       await setDoc(doc(db, 'settings', 'platform'), data, { merge: true });
+      await logRecentActivity({
+        category: 'system_events',
+        action: 'System Platform Settings Modified',
+        details: `Platform parameters updated: ${Object.keys(data).join(', ')}.`,
+        adminEmail: 'billworlddream1@gmail.com',
+        severity: 'medium',
+        status: 'info'
+      });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'settings/platform');
     }

@@ -32,17 +32,22 @@ export default function T10Engagers() {
       where('weekId', '==', weekId)
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
+    const processEngagers = async (docs: any[]) => {
       const engagersData: Engager[] = [];
       
-      const sortedDocs = [...snapshot.docs]
+      const sortedDocs = [...docs]
         .sort((a, b) => (b.data().score || 0) - (a.data().score || 0))
         .slice(0, 10);
       
       for (let i = 0; i < sortedDocs.length; i++) {
         const data = sortedDocs[i].data() as WeeklyEngagement;
-        const userDoc = await getDoc(doc(db, 'users', data.userId));
-        const userData = userDoc.exists() ? userDoc.data() : null;
+        let userData = null;
+        try {
+          const userDoc = await getDoc(doc(db, 'users', data.userId));
+          userData = userDoc.exists() ? userDoc.data() : null;
+        } catch (e) {
+          console.warn("User fetch fallback:", e);
+        }
 
         engagersData.push({
           ...data,
@@ -50,13 +55,20 @@ export default function T10Engagers() {
           name: userData?.name || 'Unknown User',
           handle: userData?.handle || '@unknown',
           avatar: userData?.avatar || `https://picsum.photos/seed/${data.userId}/150/150`,
-          trend: 'neutral', // Trends would require comparing with previous week
+          trend: 'neutral',
           trendValue: 0
         });
       }
       
       setEngagers(engagersData);
       setLoading(false);
+    };
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      processEngagers(snapshot.docs).catch((error) => {
+        console.error("Error processing engagers:", error);
+        setLoading(false);
+      });
     }, (error) => {
       console.error("Error fetching engagers:", error);
       setLoading(false);
@@ -160,7 +172,7 @@ export default function T10Engagers() {
               
               return (
                 <motion.div 
-                  key={user.userId}
+                  key={`${user.userId}-${idx}`}
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.1 }}
@@ -240,7 +252,7 @@ export default function T10Engagers() {
               <div className="divide-y divide-gray-50">
                 {engagers.slice(3).map((user, idx) => (
                   <motion.div 
-                    key={user.userId}
+                    key={`${user.userId}-${idx}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.05 }}

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "react-quill-new/dist/quill.snow.css";
 
 /* Quill Fonts */
 .ql-font-arial { font-family: 'Arial', sans-serif; }
