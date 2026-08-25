@@ -5,10 +5,19 @@
 
 import React, { Suspense, lazy, useState, useEffect } from 'react';
 
-class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}, {hasError: boolean}> {
-  constructor(props: {children: React.ReactNode}) {
+interface GlobalErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface GlobalErrorBoundaryState {
+  hasError: boolean;
+}
+
+class GlobalErrorBoundary extends React.Component<GlobalErrorBoundaryProps, GlobalErrorBoundaryState> {
+  public override state: GlobalErrorBoundaryState = { hasError: false };
+
+  constructor(props: GlobalErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false };
   }
 
   static getDerivedStateFromError() {
@@ -26,7 +35,7 @@ class GlobalErrorBoundary extends React.Component<{children: React.ReactNode}, {
     }
   }
 
-  render() {
+  override render() {
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen text-center bg-[var(--color-supreme-bg)] p-8">
