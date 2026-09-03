@@ -1,0 +1,117 @@
+name: Build Web, Android, and iOS Apps
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-web:
+    name: Build Web App
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Upload Web Dist Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist-build
+          path: dist/
+          retention-days: 30
+
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Web App & Sync Capacitor Android
+        run: |
+          npm run build
+          npx cap sync android
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  build-ios:
+    name: Build iOS Project
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Build Web App & Sync Capacitor iOS
+        run: |
+          npm run build
+          npx cap sync ios
+
+      - name: Build iOS App Workspace
+        run: |
+          xcodebuild -workspace ios/App/App.xcworkspace \
+                     -scheme App \
+                     -configuration Debug \
+                     -sdk iphonesimulator \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO \
+                     build
+
+      - name: Upload iOS Workspace Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-app-workspace
+          path: ios/App
+          retention-days: 30
