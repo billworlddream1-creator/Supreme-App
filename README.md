@@ -1,6 +1,15 @@
 # Cross-Platform Web & Mobile App (Android & iOS)
 
-This application is built as a modern, high-performance Web Application powered by React 19, Vite, TypeScript, and Tailwind CSS, fully enabled for cross-platform deployment on **Android** and **iOS** using **Capacitor**.
+This application is built as a modern, high-performance Web Application powered by React 19, Vite, TypeScript, and Tailwind CSS, fully optimized and enabled for cross-platform deployment on **Android** and **iOS** using **Capacitor**.
+
+---
+
+## 🎨 App Branding & Logo Icons
+
+The app utilizes a unified logo icon (`SUPREM LOGO 02.png`) generated for all targeted operating systems and browsers:
+- 🌐 **Web/Desktop**: Favicons (`favicon.ico`, `favicon-16x16.png`, `favicon-32x32.png`), PWA web app icons (`icon-192.png`, `icon-512.png`), and iOS touch icon (`apple-touch-icon.png`) in `public/`.
+- 🤖 **Android**: Native adaptive launcher icons (`ic_launcher`, `ic_launcher_round`, `ic_launcher_foreground`) generated across all `mipmap-*` resource resolutions in `android/app/src/main/res/`.
+- 🍎 **iOS**: High-resolution 1024x1024 native App Icon asset (`AppIcon-512@2x.png`) configured in `ios/App/App/Assets.xcassets/AppIcon.appiconset/`.
 
 ---
 
@@ -26,8 +35,8 @@ The application utilizes `@capacitor/core`, `@capacitor/android`, and `@capacito
 ## 🛠️ Getting Started & Installation
 
 ### Prerequisites
-- Node.js `^20.0.0`
-- Java JDK 17 (for Android builds)
+- Node.js `^20.0.0` or `^22.0.0`
+- Java JDK 21 (for Android builds)
 - Android Studio & SDK (for local Android builds/emulation)
 - macOS & Xcode (for local iOS builds/emulation)
 
@@ -80,18 +89,18 @@ npx cap open ios
 
 ---
 
-## ⚙️ GitHub Actions CI/CD & Downloadable Artifacts
+## ⚙️ GitHub Actions CI/CD & Artifact Downloads
 
 The repository includes a GitHub Actions workflow (`.github/workflows/build.yml`) that automatically builds Web, Android, and iOS targets on push, pull request, or manual trigger.
 
 ### Automated Builds & Artifacts
-When the workflow completes, the following **full file size artifacts** are available for download under the **Actions -> Summary** tab:
+When the workflow completes, the following **full file size artifacts** (built with `compression-level: 0` for direct uncompressed access) are available for download under the **Actions -> Summary** tab:
 
-| Artifact Name | Content | Format |
-|---|---|---|
-| `android-apk` | Ready-to-install Android Application Package | `.apk` (`app-debug.apk`) |
-| `ios-app` | Native iOS Xcode project & compiled assets | Archive / Directory |
-| `web-dist` | Optimized web static assets | Production Build Directory (`dist/`) |
+| Artifact Name | Content | Format | Compression Level |
+|---|---|---|---|
+| `android-apk` | Ready-to-install Android Application Package | `.apk` (`app-debug.apk`) | Full File Size (0) |
+| `ios-app` | Native iOS Xcode project & compiled assets | Xcode Build / Directory | Full File Size (0) |
+| `web-dist` | Optimized web static assets | Production Build Directory (`dist/`) | Full File Size (0) |
 
 ### How to Download Android APK from GitHub
 1. Go to the **Actions** tab in the GitHub repository.

@@ -42,7 +42,7 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
 
-      - name: Upload Android APK Artifact
+      - name: Upload Android APK Artifact (Full Size Download)
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
@@ -51,12 +51,13 @@ jobs:
           compression-level: 0
           overwrite: true
 
-      - name: Upload Web Dist Artifact
+      - name: Upload Web Dist Artifact (Full Size Download)
         uses: actions/upload-artifact@v4
         with:
           name: web-dist
           path: dist/
           retention-days: 30
+          compression-level: 0
           overwrite: true
 
   build-ios:
@@ -101,10 +102,11 @@ jobs:
                        clean build
           fi
 
-      - name: Upload iOS App Artifact
+      - name: Upload iOS App Artifact (Full Size Download)
         uses: actions/upload-artifact@v4
         with:
           name: ios-app
           path: ios/App
           retention-days: 30
+          compression-level: 0
           overwrite: true
